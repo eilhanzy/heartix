@@ -25,6 +25,7 @@
 #include <parser.hpp>
 #include <sstream>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <string>
 
@@ -257,6 +258,48 @@ std::string gshFindProgram(std::string cwd, std::string name)
 		return path;
 	}
 
+	// check for /system/bin and /system/sbin
+	path = "/system/bin/" + name;
+	if(gshFileExists(path))
+	{
+		return path;
+	}
+	path = "/system/sbin/" + name;
+	if(gshFileExists(path))
+	{
+		return path;
+	}
+
+	// check PATH if available
+	const char* envPath = getenv("PATH");
+	if(!envPath || !*envPath)
+	{
+		envPath = "/system/bin:/system/sbin:/applications";
+	}
+	std::string pathValue(envPath);
+	size_t start = 0;
+	while(start <= pathValue.size())
+	{
+		size_t sep = pathValue.find(':', start);
+		std::string dir = (sep == std::string::npos)
+			? pathValue.substr(start)
+			: pathValue.substr(start, sep - start);
+		if(dir.empty())
+		{
+			dir = ".";
+		}
+		std::string candidate = dir + "/" + name;
+		if(gshFileExists(candidate))
+		{
+			return candidate;
+		}
+		if(sep == std::string::npos)
+		{
+			break;
+		}
+		start = sep + 1;
+	}
+
 	// last chance - check for .bin extension
 	if(name.length() < 4 || name.substr(name.length() - 4) != ".bin")
 	{
@@ -310,7 +353,8 @@ bool gshHandleBuiltin(program_call_t* call)
 
 	if(call->program == "bg")
 	{
-		g_spawn(call->arguments.at(0).c_str(), "", "", G_SECURITY_LEVEL_APPLICATION);
+		std::string program = gshFindProgram(cwd, call->arguments.at(0));
+		g_spawn(program.c_str(), "", "", G_SECURITY_LEVEL_APPLICATION);
 		return true;
 	}
 
