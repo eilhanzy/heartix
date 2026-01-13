@@ -356,6 +356,9 @@ int vsnprintf(char* s, size_t n, const char* format, va_list arg);
  */
 int vsprintf(char* s, const char* format, va_list arg);
 
+int vasprintf(char** strp, const char* format, va_list arg);
+int asprintf(char** strp, const char* format, ...);
+
 /**
  * Variable arguments equivalent for <sscanf>. (N1548-7.21.6.14)
  */

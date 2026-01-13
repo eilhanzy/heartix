@@ -31,6 +31,7 @@ typedef g_pid pid_t;
 typedef int64_t off_t;
 typedef int64_t ssize_t;
 typedef unsigned int useconds_t;
+typedef int id_t;
 
 typedef g_fs_virt_id ino_t; // a file is identified by its virtual id
 typedef g_fs_virt_id dev_t; // a device is identified by the virtual id of the mountpoint

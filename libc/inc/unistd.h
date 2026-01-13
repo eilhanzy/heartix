@@ -110,6 +110,8 @@ int chdir(const char *path);
 int fchdir(int fd);
 int execve(const char* path, char* const argv[], char* const envp[]);
 int execv(const char* path, char* const argv[]);
+int execvp(const char* file, char* const argv[]);
+int execlp(const char* file, const char* arg, ...);
 int pipe(int fds[2]);
 int dup(int oldfd);
 int dup2(int oldfd, int newfd);

@@ -42,7 +42,7 @@ void sig_handler_SIG_IGN(int);
 // (N1548-7.14-3)
 #define SIG_IGN		sig_handler_SIG_IGN	 	// ignore handler
 #define SIG_DFL		0						// default action
-#define SIG_ERR		-1						// error return value
+#define SIG_ERR		((sig_handler_t)-1)		// error return value
 
 struct sigaction {
 	sig_handler_t sa_handler;
@@ -53,11 +53,16 @@ struct sigaction {
 #define SA_RESETHAND 0x00000001
 #define SA_NODEFER  0x00000002
 
+#define SIG_BLOCK   0
+#define SIG_UNBLOCK 1
+#define SIG_SETMASK 2
+
 int sigemptyset(sigset_t* set);
 int sigaddset(sigset_t* set, int sig);
 int sigdelset(sigset_t* set, int sig);
 int sigismember(const sigset_t* set, int sig);
 int sigaction(int sig, const struct sigaction* act, struct sigaction* oldact);
+int sigprocmask(int how, const sigset_t* set, sigset_t* oldset);
 char* strsignal(int sig);
 
 /**

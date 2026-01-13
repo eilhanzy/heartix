@@ -156,6 +156,7 @@ int isupper(int c);
  * 		1 if <c> is a hexadecimal-digit character, otherwise 0
  */
 int isxdigit(int c);
+int isascii(int c);
 
 /**
  * Converts an uppercase letter to its corresponding lowercase letter. (N1548-7.4.2.1)

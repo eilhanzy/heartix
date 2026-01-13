@@ -35,3 +35,5 @@ add_custom_target(libapi-install-headers
   COMMAND ${CMAKE_COMMAND} -E make_directory ${SYSROOT}/system/include
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${LIBAPI_INC}/ ${SYSROOT}/system/include
   COMMENT "Installing libapi headers")
+
+add_dependencies(libapi-install libapi-install-headers)

@@ -61,6 +61,7 @@ void* memchr(const void* mem, int value, size_t num);
 
 char* strcpy(char* dest, const char* src);
 char* strncpy(char* dest, const char* src, size_t max);
+char* stpcpy(char* dest, const char* src);
 
 char* strcat(char* dest, const char* src);
 char* strncat(char* dest, const char* src, size_t max);
@@ -78,12 +79,14 @@ size_t strcspn(const char* str_a, const char* str_b);
 size_t strspn(const char* str_a, const char* str_b);
 char* strpbrk(const char* str_a, const char* str_b);
 char* strstr(const char* str_a, const char* str_b);
+char* strcasestr(const char* haystack, const char* needle);
 char* strtok(char* dest, const char* src);
 char* strtok_r(char* str, const char* delim, char** saveptr);
 
 size_t strlen(const char* str);
 
 char* strdup(const char *s);
+char* strndup(const char* s, size_t n);
 
 char* strerror(int errno);
 

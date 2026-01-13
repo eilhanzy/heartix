@@ -31,6 +31,35 @@ struct timeval {
 	suseconds_t tv_usec;
 };
 
+#define timerclear(tvp) do { \
+	(tvp)->tv_sec = 0; \
+	(tvp)->tv_usec = 0; \
+} while(0)
+
+#define timerisset(tvp) ((tvp)->tv_sec || (tvp)->tv_usec)
+
+#define timercmp(a, b, cmp) (((a)->tv_sec == (b)->tv_sec) ? \
+	((a)->tv_usec cmp (b)->tv_usec) : ((a)->tv_sec cmp (b)->tv_sec))
+
+#define timeradd(a, b, result) do { \
+	(result)->tv_sec = (a)->tv_sec + (b)->tv_sec; \
+	(result)->tv_usec = (a)->tv_usec + (b)->tv_usec; \
+	if((result)->tv_usec >= 1000000) { \
+		++(result)->tv_sec; \
+		(result)->tv_usec -= 1000000; \
+	} \
+} while(0)
+
+#define timersub(a, b, result) do { \
+	long long __usec = (long long)(a)->tv_usec - (long long)(b)->tv_usec; \
+	(result)->tv_sec = (a)->tv_sec - (b)->tv_sec; \
+	if(__usec < 0) { \
+		--(result)->tv_sec; \
+		__usec += 1000000; \
+	} \
+	(result)->tv_usec = (suseconds_t)__usec; \
+} while(0)
+
 int gettimeofday(struct timeval* tp, void* tzp);
 
 __END_C
