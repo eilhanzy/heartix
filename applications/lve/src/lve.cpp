@@ -10,8 +10,51 @@
 #include "linux_loader.hpp"
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+
+namespace
+{
+
+bool parseUint64(const char* text, uint64_t* out)
+{
+	if(!text || !*text || !out)
+		return false;
+
+	uint64_t value = 0;
+	int base = 10;
+	size_t idx = 0;
+
+	if(text[0] == '0' && (text[1] == 'x' || text[1] == 'X'))
+	{
+		base = 16;
+		idx = 2;
+		if(!text[idx])
+			return false;
+	}
+
+	for(; text[idx]; ++idx)
+	{
+		char c = text[idx];
+		uint8_t digit = 0;
+		if(c >= '0' && c <= '9')
+			digit = static_cast<uint8_t>(c - '0');
+		else if(base == 16 && c >= 'a' && c <= 'f')
+			digit = static_cast<uint8_t>(10 + (c - 'a'));
+		else if(base == 16 && c >= 'A' && c <= 'F')
+			digit = static_cast<uint8_t>(10 + (c - 'A'));
+		else
+			return false;
+
+		if(digit >= base)
+			return false;
+		value = value * static_cast<uint64_t>(base) + digit;
+	}
+
+	*out = value;
+	return true;
+}
+
+} // namespace
 
 static const char* vmxStatusToString(g_vmx_status status)
 {
@@ -69,7 +112,11 @@ int main(int argc, char** argv)
 				printf("lve: --ram requires a size in MiB\n");
 				return 1;
 			}
-			ramMb = strtoull(argv[++i], nullptr, 0);
+			if(!parseUint64(argv[++i], &ramMb))
+			{
+				printf("lve: invalid --ram value\n");
+				return 1;
+			}
 		}
 		else if(strcmp(argv[i], "--bzimage") == 0)
 		{
