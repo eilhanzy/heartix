@@ -10,6 +10,5 @@ print:"launching headless terminal"
 print:"playing startup sound"
 	application:"/applications/startupsound.bin"
 
-/*print:"launching UI stack"
+print:"launching UI stack"
 	script:"/system/launch/launch-ui"
-*/
