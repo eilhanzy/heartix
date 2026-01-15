@@ -39,6 +39,7 @@ void (*registeredKeyboardCallback)(uint8_t);
 
 void ps2HandlePacket();
 static bool ps2ReadDataByte(uint8_t* out);
+void ps2PollLoop();
 
 ps2_status_t ps2Initialize(void (*mouseCallback)(int16_t, int16_t, uint8_t, int8_t),
                            void (*keyboardCallback)(uint8_t))
@@ -58,6 +59,7 @@ ps2_status_t ps2Initialize(void (*mouseCallback)(int16_t, int16_t, uint8_t, int8
 
 	g_create_task_a((void*) &ps2AwaitKeyIrq, 0);
 	g_create_task_a((void*) &ps2AwaitMouseIrq, 0);
+	g_create_task_a((void*) &ps2PollLoop, 0);
 	return G_PS2_STATUS_SUCCESS;
 }
 
@@ -78,6 +80,17 @@ void ps2AwaitMouseIrq()
 	{
 		g_await_irq_t(12, 50);
 		ps2CheckForData();
+	}
+}
+
+void ps2PollLoop()
+{
+	g_task_register_name("libps2/poll");
+	for(;;)
+	{
+		// Fallback polling in case IRQ delivery is unreliable.
+		ps2CheckForData();
+		g_sleep(5);
 	}
 }
 

@@ -59,6 +59,8 @@ struct g_ps2_initialize_request
     g_ps2_request_header header;
     g_tid keyboardPartnerTask;
     g_tid mousePartnerTask;
+    g_message_transaction keyboardTx;
+    g_message_transaction mouseTx;
 }__attribute__((packed));
 
 /**
@@ -81,12 +83,34 @@ struct g_ps2_mouse_packet
 }__attribute__((packed));
 
 /**
+ *
+ */
+struct g_ps2_key_event
+{
+    uint8_t scancode;
+}__attribute__((packed));
+
+/**
+ *
+ */
+struct g_ps2_event_stream
+{
+    g_message_transaction keyboardTx;
+    g_message_transaction mouseTx;
+}__attribute__((packed));
+
+/**
  * Sends a request to the PS2 driver to allow this process to read data.
  * If partner tasks are provided, the driver will yield control to them
  * whenever new data is available.
  */
-bool ps2DriverInitialize(g_fd* keyboardReadOut, g_fd* mouseReadOut,
+bool ps2DriverInitialize(g_ps2_event_stream* outStream,
                          g_tid keyboardPartnerTask = G_TID_NONE,
                          g_tid mousePartnerTask = G_TID_NONE);
+
+g_message_receive_status ps2DriverReadKeyboard(g_message_transaction tx, g_ps2_key_event* outEvent,
+                                               g_message_receive_mode mode = G_MESSAGE_RECEIVE_MODE_BLOCKING);
+g_message_receive_status ps2DriverReadMouse(g_message_transaction tx, g_ps2_mouse_packet* outPacket,
+                                            g_message_receive_mode mode = G_MESSAGE_RECEIVE_MODE_BLOCKING);
 
 #endif

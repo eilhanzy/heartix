@@ -21,6 +21,7 @@
 #ifndef __LIBINPUT_MOUSE__
 #define __LIBINPUT_MOUSE__
 
+#include <libps2driver/ps2driver.hpp>
 #include <sstream>
 #include <stdint.h>
 #include <string>
@@ -38,7 +39,7 @@ struct g_mouse_info
 class g_mouse
 {
   public:
-	static g_mouse_info readMouse(g_fd in);
+	static g_mouse_info readMouse(const g_ps2_event_stream& stream);
 };
 
 #endif

@@ -41,16 +41,15 @@ static std::string currentLayout;
 static g_key_info last_unknown_key;
 static bool have_last_unknown_key = false;
 
-g_key_info g_keyboard::readKey(g_fd in)
+g_key_info g_keyboard::readKey(const g_ps2_event_stream& stream)
 {
-	uint8_t scancode[1];
-	if(g_read(in, scancode, 1) > 0)
+	g_ps2_key_event event{};
+	auto status = ps2DriverReadKeyboard(stream.keyboardTx, &event, G_MESSAGE_RECEIVE_MODE_BLOCKING);
+	if(status == G_MESSAGE_RECEIVE_STATUS_SUCCESSFUL)
 	{
 		g_key_info info;
-		if(keyForScancode(scancode[0], &info))
-		{
+		if(keyForScancode(event.scancode, &info))
 			return info;
-		}
 	}
 
 	return g_key_info();

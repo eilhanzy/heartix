@@ -28,8 +28,7 @@
 #define VIDEO_MEMORY 0xB8000
 
 static uint8_t* output = (uint8_t*) VIDEO_MEMORY;
-static g_fd keyboardIn;
-static g_fd mouseIn;
+static g_ps2_event_stream inputStream;
 
 headless_screen_t::headless_screen_t()
 {
@@ -44,7 +43,7 @@ bool headless_screen_t::initialize(g_user_mutex exitFlag)
 	enableCursor();
 	clean();
 
-	return ps2DriverInitialize(&keyboardIn, &mouseIn);
+	return ps2DriverInitialize(&inputStream);
 }
 
 void headless_screen_t::clean()
@@ -161,7 +160,7 @@ void headless_screen_t::normalize()
 
 g_key_info headless_screen_t::readInput()
 {
-	return g_keyboard::readKey(keyboardIn);
+	return g_keyboard::readKey(inputStream);
 }
 
 int headless_screen_t::getCursorX()

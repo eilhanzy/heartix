@@ -21,6 +21,7 @@
 #ifndef __LIBINPUT_KEYBOARD__
 #define __LIBINPUT_KEYBOARD__
 
+#include <libps2driver/ps2driver.hpp>
 #include <sstream>
 #include <stdint.h>
 #include <string>
@@ -84,7 +85,7 @@ class g_keyboard
 	static void registerKeyboard();
 
   public:
-	static g_key_info readKey(g_fd in);
+	static g_key_info readKey(const g_ps2_event_stream& stream);
 
 	static bool keyForScancode(uint8_t scancode, g_key_info *out);
 	static char charForKey(g_key_info info);

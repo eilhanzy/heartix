@@ -29,8 +29,7 @@
 
 namespace
 {
-static g_fd keyboardIn;
-static g_fd mouseIn;
+static g_ps2_event_stream inputStream;
 }
 
 bool fb_screen_t::waitForVideoDevice(g_tid& outDriver, g_device_id& outDevice)
@@ -169,7 +168,7 @@ bool fb_screen_t::initialize(g_user_mutex exitFlag)
 
 	clearPixels();
 
-	if(!ps2DriverInitialize(&keyboardIn, &mouseIn))
+	if(!ps2DriverInitialize(&inputStream))
 		return false;
 
 	fgColor = mapColor(SC_WHITE);
@@ -179,7 +178,7 @@ bool fb_screen_t::initialize(g_user_mutex exitFlag)
 
 g_key_info fb_screen_t::readInput()
 {
-	return g_keyboard::readKey(keyboardIn);
+	return g_keyboard::readKey(inputStream);
 }
 
 void fb_screen_t::clean()
