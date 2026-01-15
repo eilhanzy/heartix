@@ -63,6 +63,16 @@ typedef uint32_t g_vmx_command;
 #define G_VMX_CMD_GET_CAPS 1
 #define G_VMX_CMD_ENABLE 2
 #define G_VMX_CMD_DISABLE 3
+#define G_VMX_CMD_VCPU_CREATE 10
+#define G_VMX_CMD_VCPU_DESTROY 11
+#define G_VMX_CMD_VCPU_CLEAR 12
+#define G_VMX_CMD_VCPU_LOAD 13
+#define G_VMX_CMD_VCPU_READ 14
+#define G_VMX_CMD_VCPU_WRITE 15
+#define G_VMX_CMD_VCPU_LAUNCH 16
+#define G_VMX_CMD_VCPU_RESUME 17
+
+typedef uint32_t g_vmx_vcpu_id;
 
 typedef struct
 {

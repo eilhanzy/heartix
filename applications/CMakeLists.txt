@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.20)
 # Option: build shared variants of application libraries (default OFF to avoid host CRT issues)
 option(GHOST_APPLIBS_SHARED "Build shared variants of application libraries" OFF)
 # Option: build fenster UI stack and GUI apps (defaults OFF to keep ghmwm standalone)
-option(GHOST_ENABLE_FENSTER "Build fenster UI stack (window server + GUI apps)" OFF)
+option(GHOST_ENABLE_FENSTER "Build fenster UI stack (window server + GUI apps)" ON)
 
 # Collect all library include directories to be available for apps during build
 file(GLOB _all_inc_dirs RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} */inc)

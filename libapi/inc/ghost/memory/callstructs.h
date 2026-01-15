@@ -95,6 +95,21 @@ typedef struct
 }__attribute__((packed)) g_syscall_map_mmio;
 
 /**
+ * @field virtualAddress
+ * 		the virtual address to translate
+ *
+ * @field physicalAddress
+ * 		the resolved physical address, or 0 on failure
+ *
+ * @security-level DRIVER
+ */
+typedef struct
+{
+	g_virtual_address virtualAddress;
+	g_physical_address physicalAddress;
+}__attribute__((packed)) g_syscall_virt_to_phys;
+
+/**
  * @field virtualBase
  * 		the address of the area to free
  *

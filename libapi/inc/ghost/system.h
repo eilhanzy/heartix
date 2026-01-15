@@ -155,6 +155,62 @@ g_vmx_status g_vmx_enable();
  */
 g_vmx_status g_vmx_disable();
 
+/**
+ * Creates a VMCS-backed vCPU handle.
+ *
+ * @security-level DRIVER
+ */
+g_vmx_status g_vmx_vcpu_create(g_vmx_vcpu_id* outId);
+
+/**
+ * Destroys a previously created vCPU handle.
+ *
+ * @security-level DRIVER
+ */
+g_vmx_status g_vmx_vcpu_destroy(g_vmx_vcpu_id id);
+
+/**
+ * Clears the VMCS state for a vCPU.
+ *
+ * @security-level DRIVER
+ */
+g_vmx_status g_vmx_vcpu_clear(g_vmx_vcpu_id id, uint32_t* outError);
+
+/**
+ * Loads the VMCS for a vCPU on the current CPU.
+ *
+ * @security-level DRIVER
+ */
+g_vmx_status g_vmx_vcpu_load(g_vmx_vcpu_id id, uint32_t* outError);
+
+/**
+ * Reads a VMCS field.
+ *
+ * @security-level DRIVER
+ */
+g_vmx_status g_vmx_vcpu_read(g_vmx_vcpu_id id, uint32_t field, uint64_t* outValue, uint32_t* outError);
+
+/**
+ * Writes a VMCS field.
+ *
+ * @security-level DRIVER
+ */
+g_vmx_status g_vmx_vcpu_write(g_vmx_vcpu_id id, uint32_t field, uint64_t value, uint32_t* outError);
+
+/**
+ * Attempts VM-entry (VMLAUNCH).
+ *
+ * @security-level DRIVER
+ */
+g_vmx_status g_vmx_vcpu_launch(g_vmx_vcpu_id id, uint32_t* outError);
+
+/**
+ * Attempts VM-entry (VMRESUME).
+ *
+ * @security-level DRIVER
+ */
+g_vmx_status g_vmx_vcpu_resume(g_vmx_vcpu_id id, uint32_t* outError);
+
 __END_C
 
 #endif

@@ -18,26 +18,20 @@
  *                                                                           *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef __KERNEL_SYSCALL_MEMORY__
-#define __KERNEL_SYSCALL_MEMORY__
+#include "ghost/syscall.h"
+#include "ghost/memory.h"
+#include "ghost/memory/callstructs.h"
 
-#include "kernel/tasking/tasking.hpp"
-#include <ghost/memory/callstructs.h>
+/**
+ * @see header
+ */
+g_physical_address g_virt_to_phys(void* addr)
+{
+	g_syscall_virt_to_phys data;
+	data.virtualAddress = (g_virtual_address) addr;
+	data.physicalAddress = 0;
 
-void syscallSbrk(g_task* task, g_syscall_sbrk* data);
+	g_syscall(G_SYSCALL_VIRT_TO_PHYS, (g_address) &data);
 
-void syscallLowerMemoryAllocate(g_task* task, g_syscall_lower_malloc* data);
-
-void syscallLowerMemoryFree(g_task* task, g_syscall_lower_free* data);
-
-void syscallAllocateMemory(g_task* task, g_syscall_alloc_mem* data);
-
-void syscallUnmap(g_task* task, g_syscall_unmap* data);
-
-void syscallShareMemory(g_task* task, g_syscall_share_mem* data);
-
-void syscallMapMmioArea(g_task* task, g_syscall_map_mmio* data);
-
-void syscallVirtToPhys(g_task* task, g_syscall_virt_to_phys* data);
-
-#endif
+	return data.physicalAddress;
+}

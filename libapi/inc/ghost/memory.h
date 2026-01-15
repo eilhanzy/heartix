@@ -82,6 +82,18 @@ void* g_share_mem(void* memory, int32_t size, g_pid pid);
 void* g_map_mmio(void* addr, uint32_t size);
 
 /**
+ * Resolves a virtual address to the backing physical address.
+ *
+ * @param addr
+ * 		the virtual address to translate
+ *
+ * @return the resolved physical address, or 0 if unmapped
+ *
+ * @security-level DRIVER
+ */
+g_physical_address g_virt_to_phys(void* addr);
+
+/**
  * Unmaps the given memory area.
  *
  * @param area

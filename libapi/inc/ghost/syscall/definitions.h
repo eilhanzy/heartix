@@ -62,6 +62,7 @@ __BEGIN_C
 #define G_SYSCALL_SHARE_MEMORY					44
 #define G_SYSCALL_MAP_MMIO_AREA					45
 #define G_SYSCALL_SBRK							46
+#define G_SYSCALL_VIRT_TO_PHYS					47
 
 // Mutex
 #define G_SYSCALL_USER_MUTEX_INITIALIZE 		60

@@ -153,6 +153,10 @@ typedef struct
 	g_vmx_command command;
 	g_vmx_status status;
 	g_vmx_caps caps;
+	g_vmx_vcpu_id vcpu;
+	uint32_t field;
+	uint64_t value;
+	uint32_t error;
 } __attribute__((packed)) g_syscall_vmx;
 
 __END_C

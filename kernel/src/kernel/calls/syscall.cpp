@@ -121,6 +121,7 @@ void syscallRegisterAll()
 	_syscallRegister(G_SYSCALL_SHARE_MEMORY, (g_syscall_handler) syscallShareMemory, true);
 	_syscallRegister(G_SYSCALL_MAP_MMIO_AREA, (g_syscall_handler) syscallMapMmioArea, true);
 	_syscallRegister(G_SYSCALL_SBRK, (g_syscall_handler) syscallSbrk, true);
+	_syscallRegister(G_SYSCALL_VIRT_TO_PHYS, (g_syscall_handler) syscallVirtToPhys, true);
 
 	// Mutex
 	_syscallRegister(G_SYSCALL_USER_MUTEX_INITIALIZE, (g_syscall_handler) syscallMutexInitialize);

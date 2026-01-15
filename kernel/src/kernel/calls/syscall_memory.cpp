@@ -210,3 +210,14 @@ void syscallMapMmioArea(g_task* task, g_syscall_map_mmio* data)
 	logInfo("%! map_mmio task=%i success virt=%h pages=%u", "syscall", task->id, virtualRangeBase, pages);
 }
 
+void syscallVirtToPhys(g_task* task, g_syscall_virt_to_phys* data)
+{
+	data->physicalAddress = 0;
+	if(task->securityLevel > G_SECURITY_LEVEL_DRIVER)
+		return;
+
+	if(!data->virtualAddress)
+		return;
+
+	data->physicalAddress = pagingVirtualToPhysical(data->virtualAddress);
+}

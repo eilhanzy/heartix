@@ -51,6 +51,21 @@ bool vmxStateLockReady = false;
 vmx_cpu_state* vmxStates = nullptr;
 uint32_t vmxStateCount = 0;
 
+struct vmx_vcpu
+{
+	g_vmx_vcpu_id id;
+	g_pid owner;
+	g_virtual_address vmcsRegion;
+	g_physical_address vmcsPhys;
+	uint32_t revisionId;
+	vmx_vcpu* next;
+};
+
+g_mutex vmxVcpuLock;
+bool vmxVcpuLockReady = false;
+vmx_vcpu* vmxVcpuList = nullptr;
+g_vmx_vcpu_id vmxNextVcpuId = 1;
+
 uint64_t vmxReadMsr(uint32_t msr)
 {
 	uint32_t lo = 0;
@@ -126,6 +141,61 @@ bool vmxOff()
 	return vmxInstructionOk(status);
 }
 
+bool vmxClear(g_physical_address phys)
+{
+	uint8_t status = 0;
+	uint64_t operand = phys;
+	asm volatile("vmclear %1; setna %0" : "=rm"(status) : "m"(operand) : "cc", "memory");
+	return vmxInstructionOk(status);
+}
+
+bool vmxLoad(g_physical_address phys)
+{
+	uint8_t status = 0;
+	uint64_t operand = phys;
+	asm volatile("vmptrld %1; setna %0" : "=rm"(status) : "m"(operand) : "cc", "memory");
+	return vmxInstructionOk(status);
+}
+
+bool vmxVmread(uint64_t field, uint64_t* value)
+{
+	uint8_t status = 0;
+	uint64_t out = 0;
+	asm volatile("vmread %2, %1; setna %0" : "=rm"(status), "=r"(out) : "r"(field) : "cc");
+	if(vmxInstructionOk(status) && value)
+		*value = out;
+	return vmxInstructionOk(status);
+}
+
+bool vmxVmwrite(uint64_t field, uint64_t value)
+{
+	uint8_t status = 0;
+	asm volatile("vmwrite %2, %1; setna %0" : "=rm"(status) : "r"(field), "r"(value) : "cc");
+	return vmxInstructionOk(status);
+}
+
+bool vmxLaunch()
+{
+	uint8_t status = 0;
+	asm volatile("vmlaunch; setna %0" : "=rm"(status) : : "cc", "memory");
+	return vmxInstructionOk(status);
+}
+
+bool vmxResume()
+{
+	uint8_t status = 0;
+	asm volatile("vmresume; setna %0" : "=rm"(status) : : "cc", "memory");
+	return vmxInstructionOk(status);
+}
+
+uint32_t vmxReadInstructionError()
+{
+	uint64_t error = 0;
+	if(!vmxVmread(0x4400, &error))
+		return 0xFFFFFFFFu;
+	return static_cast<uint32_t>(error);
+}
+
 bool vmxEnsureStateArray()
 {
 	if(!vmxStateLockReady)
@@ -143,6 +213,28 @@ bool vmxEnsureStateArray()
 
 	vmxStates = static_cast<vmx_cpu_state*>(heapAllocateClear(sizeof(vmx_cpu_state) * vmxStateCount));
 	return vmxStates != nullptr;
+}
+
+bool vmxEnsureVcpuList()
+{
+	if(!vmxVcpuLockReady)
+	{
+		mutexInitializeGlobal(&vmxVcpuLock, __func__);
+		vmxVcpuLockReady = true;
+	}
+	return true;
+}
+
+vmx_vcpu* vmxFindVcpuLocked(g_vmx_vcpu_id id, g_pid owner)
+{
+	vmx_vcpu* entry = vmxVcpuList;
+	while(entry)
+	{
+		if(entry->id == id && entry->owner == owner)
+			return entry;
+		entry = entry->next;
+	}
+	return nullptr;
 }
 
 } // namespace
@@ -314,4 +406,241 @@ g_vmx_status vmxDisable()
 
 	mutexRelease(&vmxStateLock);
 	return G_VMX_STATUS_SUCCESS;
+}
+
+g_vmx_status vmxVcpuCreate(g_pid owner, g_vmx_vcpu_id* outId)
+{
+	if(!outId)
+		return G_VMX_STATUS_FAILED;
+
+	if(!processorHasFeature(g_cpuid_extended_ecx_feature::VMX))
+		return G_VMX_STATUS_UNSUPPORTED;
+
+	if(!vmxIsEnabled(processorGetCurrentId()))
+		return G_VMX_STATUS_DISABLED;
+
+	if(!vmxEnsureVcpuList())
+		return G_VMX_STATUS_FAILED;
+
+	mutexAcquire(&vmxVcpuLock);
+
+	vmx_vcpu* vcpu = static_cast<vmx_vcpu*>(heapAllocateClear(sizeof(vmx_vcpu)));
+	if(!vcpu)
+	{
+		mutexRelease(&vmxVcpuLock);
+		return G_VMX_STATUS_NO_MEMORY;
+	}
+
+	const uint32_t revisionId = static_cast<uint32_t>(vmxReadMsr(IA32_VMX_BASIC) & 0x7FFFFFFF);
+	g_virtual_address vmcsRegion = memoryAllocateKernel(1);
+	if(!vmcsRegion)
+	{
+		heapFree(vcpu);
+		mutexRelease(&vmxVcpuLock);
+		return G_VMX_STATUS_NO_MEMORY;
+	}
+
+	g_physical_address vmcsPhys = pagingVirtualToPhysical(vmcsRegion);
+	memorySetBytes(reinterpret_cast<void*>(vmcsRegion), 0, G_PAGE_SIZE);
+	*reinterpret_cast<uint32_t*>(vmcsRegion) = revisionId;
+
+	vcpu->id = vmxNextVcpuId++;
+	vcpu->owner = owner;
+	vcpu->vmcsRegion = vmcsRegion;
+	vcpu->vmcsPhys = vmcsPhys;
+	vcpu->revisionId = revisionId;
+	vcpu->next = vmxVcpuList;
+	vmxVcpuList = vcpu;
+
+	mutexRelease(&vmxVcpuLock);
+
+	*outId = vcpu->id;
+	return G_VMX_STATUS_SUCCESS;
+}
+
+g_vmx_status vmxVcpuDestroy(g_pid owner, g_vmx_vcpu_id id)
+{
+	if(!vmxEnsureVcpuList())
+		return G_VMX_STATUS_FAILED;
+
+	mutexAcquire(&vmxVcpuLock);
+	vmx_vcpu* prev = nullptr;
+	vmx_vcpu* entry = vmxVcpuList;
+	while(entry)
+	{
+		if(entry->id == id && entry->owner == owner)
+		{
+			if(prev)
+				prev->next = entry->next;
+			else
+				vmxVcpuList = entry->next;
+
+			if(vmxIsEnabled(processorGetCurrentId()))
+				vmxClear(entry->vmcsPhys);
+			if(entry->vmcsRegion)
+				memoryFreeKernelRange(entry->vmcsRegion);
+			heapFree(entry);
+			mutexRelease(&vmxVcpuLock);
+			return G_VMX_STATUS_SUCCESS;
+		}
+		prev = entry;
+		entry = entry->next;
+	}
+	mutexRelease(&vmxVcpuLock);
+	return G_VMX_STATUS_FAILED;
+}
+
+g_vmx_status vmxVcpuClear(g_pid owner, g_vmx_vcpu_id id, uint32_t* outError)
+{
+	if(!vmxIsEnabled(processorGetCurrentId()))
+		return G_VMX_STATUS_DISABLED;
+
+	if(!vmxEnsureVcpuList())
+		return G_VMX_STATUS_FAILED;
+
+	mutexAcquire(&vmxVcpuLock);
+	vmx_vcpu* vcpu = vmxFindVcpuLocked(id, owner);
+	if(!vcpu)
+	{
+		mutexRelease(&vmxVcpuLock);
+		return G_VMX_STATUS_FAILED;
+	}
+	bool ok = vmxClear(vcpu->vmcsPhys);
+	uint32_t error = ok ? 0 : vmxReadInstructionError();
+	mutexRelease(&vmxVcpuLock);
+
+	if(outError)
+		*outError = error;
+	return ok ? G_VMX_STATUS_SUCCESS : G_VMX_STATUS_FAILED;
+}
+
+g_vmx_status vmxVcpuLoad(g_pid owner, g_vmx_vcpu_id id, uint32_t* outError)
+{
+	if(!vmxIsEnabled(processorGetCurrentId()))
+		return G_VMX_STATUS_DISABLED;
+
+	if(!vmxEnsureVcpuList())
+		return G_VMX_STATUS_FAILED;
+
+	mutexAcquire(&vmxVcpuLock);
+	vmx_vcpu* vcpu = vmxFindVcpuLocked(id, owner);
+	if(!vcpu)
+	{
+		mutexRelease(&vmxVcpuLock);
+		return G_VMX_STATUS_FAILED;
+	}
+	bool ok = vmxLoad(vcpu->vmcsPhys);
+	uint32_t error = ok ? 0 : vmxReadInstructionError();
+	mutexRelease(&vmxVcpuLock);
+
+	if(outError)
+		*outError = error;
+	return ok ? G_VMX_STATUS_SUCCESS : G_VMX_STATUS_FAILED;
+}
+
+g_vmx_status vmxVcpuRead(g_pid owner, g_vmx_vcpu_id id, uint32_t field, uint64_t* outValue, uint32_t* outError)
+{
+	if(!outValue)
+		return G_VMX_STATUS_FAILED;
+
+	if(!vmxIsEnabled(processorGetCurrentId()))
+		return G_VMX_STATUS_DISABLED;
+
+	if(!vmxEnsureVcpuList())
+		return G_VMX_STATUS_FAILED;
+
+	mutexAcquire(&vmxVcpuLock);
+	vmx_vcpu* vcpu = vmxFindVcpuLocked(id, owner);
+	if(!vcpu)
+	{
+		mutexRelease(&vmxVcpuLock);
+		return G_VMX_STATUS_FAILED;
+	}
+	bool ok = vmxLoad(vcpu->vmcsPhys);
+	if(ok)
+		ok = vmxVmread(field, outValue);
+	uint32_t error = ok ? 0 : vmxReadInstructionError();
+	mutexRelease(&vmxVcpuLock);
+
+	if(outError)
+		*outError = error;
+	return ok ? G_VMX_STATUS_SUCCESS : G_VMX_STATUS_FAILED;
+}
+
+g_vmx_status vmxVcpuWrite(g_pid owner, g_vmx_vcpu_id id, uint32_t field, uint64_t value, uint32_t* outError)
+{
+	if(!vmxIsEnabled(processorGetCurrentId()))
+		return G_VMX_STATUS_DISABLED;
+
+	if(!vmxEnsureVcpuList())
+		return G_VMX_STATUS_FAILED;
+
+	mutexAcquire(&vmxVcpuLock);
+	vmx_vcpu* vcpu = vmxFindVcpuLocked(id, owner);
+	if(!vcpu)
+	{
+		mutexRelease(&vmxVcpuLock);
+		return G_VMX_STATUS_FAILED;
+	}
+	bool ok = vmxLoad(vcpu->vmcsPhys);
+	if(ok)
+		ok = vmxVmwrite(field, value);
+	uint32_t error = ok ? 0 : vmxReadInstructionError();
+	mutexRelease(&vmxVcpuLock);
+
+	if(outError)
+		*outError = error;
+	return ok ? G_VMX_STATUS_SUCCESS : G_VMX_STATUS_FAILED;
+}
+
+g_vmx_status vmxVcpuLaunch(g_pid owner, g_vmx_vcpu_id id, uint32_t* outError)
+{
+	if(!vmxIsEnabled(processorGetCurrentId()))
+		return G_VMX_STATUS_DISABLED;
+
+	if(!vmxEnsureVcpuList())
+		return G_VMX_STATUS_FAILED;
+
+	mutexAcquire(&vmxVcpuLock);
+	vmx_vcpu* vcpu = vmxFindVcpuLocked(id, owner);
+	if(!vcpu)
+	{
+		mutexRelease(&vmxVcpuLock);
+		return G_VMX_STATUS_FAILED;
+	}
+	bool ok = vmxLoad(vcpu->vmcsPhys);
+	if(ok)
+		ok = vmxLaunch();
+	uint32_t error = ok ? 0 : vmxReadInstructionError();
+	mutexRelease(&vmxVcpuLock);
+
+	if(outError)
+		*outError = error;
+	return ok ? G_VMX_STATUS_SUCCESS : G_VMX_STATUS_FAILED;
+}
+
+g_vmx_status vmxVcpuResume(g_pid owner, g_vmx_vcpu_id id, uint32_t* outError)
+{
+	if(!vmxIsEnabled(processorGetCurrentId()))
+		return G_VMX_STATUS_DISABLED;
+
+	if(!vmxEnsureVcpuList())
+		return G_VMX_STATUS_FAILED;
+
+	mutexAcquire(&vmxVcpuLock);
+	vmx_vcpu* vcpu = vmxFindVcpuLocked(id, owner);
+	if(!vcpu)
+	{
+		mutexRelease(&vmxVcpuLock);
+		return G_VMX_STATUS_FAILED;
+	}
+	bool ok = vmxLoad(vcpu->vmcsPhys);
+	if(ok)
+		ok = vmxResume();
+	uint32_t error = ok ? 0 : vmxReadInstructionError();
+	mutexRelease(&vmxVcpuLock);
+
+	if(outError)
+		*outError = error;
+	return ok ? G_VMX_STATUS_SUCCESS : G_VMX_STATUS_FAILED;
 }

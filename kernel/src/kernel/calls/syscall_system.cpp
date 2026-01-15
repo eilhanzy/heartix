@@ -186,6 +186,8 @@ void syscallVmx(g_task* task, g_syscall_vmx* data)
 	if(!data)
 		return;
 
+	data->error = 0;
+
 	switch(data->command)
 	{
 		case G_VMX_CMD_GET_CAPS:
@@ -206,6 +208,70 @@ void syscallVmx(g_task* task, g_syscall_vmx* data)
 				break;
 			}
 			data->status = vmxDisable();
+			break;
+		case G_VMX_CMD_VCPU_CREATE:
+			if(task->securityLevel > G_SECURITY_LEVEL_DRIVER)
+			{
+				data->status = G_VMX_STATUS_NOT_PERMITTED;
+				break;
+			}
+			data->status = vmxVcpuCreate(task->process->id, &data->vcpu);
+			break;
+		case G_VMX_CMD_VCPU_DESTROY:
+			if(task->securityLevel > G_SECURITY_LEVEL_DRIVER)
+			{
+				data->status = G_VMX_STATUS_NOT_PERMITTED;
+				break;
+			}
+			data->status = vmxVcpuDestroy(task->process->id, data->vcpu);
+			break;
+		case G_VMX_CMD_VCPU_CLEAR:
+			if(task->securityLevel > G_SECURITY_LEVEL_DRIVER)
+			{
+				data->status = G_VMX_STATUS_NOT_PERMITTED;
+				break;
+			}
+			data->status = vmxVcpuClear(task->process->id, data->vcpu, &data->error);
+			break;
+		case G_VMX_CMD_VCPU_LOAD:
+			if(task->securityLevel > G_SECURITY_LEVEL_DRIVER)
+			{
+				data->status = G_VMX_STATUS_NOT_PERMITTED;
+				break;
+			}
+			data->status = vmxVcpuLoad(task->process->id, data->vcpu, &data->error);
+			break;
+		case G_VMX_CMD_VCPU_READ:
+			if(task->securityLevel > G_SECURITY_LEVEL_DRIVER)
+			{
+				data->status = G_VMX_STATUS_NOT_PERMITTED;
+				break;
+			}
+			data->status = vmxVcpuRead(task->process->id, data->vcpu, data->field, &data->value, &data->error);
+			break;
+		case G_VMX_CMD_VCPU_WRITE:
+			if(task->securityLevel > G_SECURITY_LEVEL_DRIVER)
+			{
+				data->status = G_VMX_STATUS_NOT_PERMITTED;
+				break;
+			}
+			data->status = vmxVcpuWrite(task->process->id, data->vcpu, data->field, data->value, &data->error);
+			break;
+		case G_VMX_CMD_VCPU_LAUNCH:
+			if(task->securityLevel > G_SECURITY_LEVEL_DRIVER)
+			{
+				data->status = G_VMX_STATUS_NOT_PERMITTED;
+				break;
+			}
+			data->status = vmxVcpuLaunch(task->process->id, data->vcpu, &data->error);
+			break;
+		case G_VMX_CMD_VCPU_RESUME:
+			if(task->securityLevel > G_SECURITY_LEVEL_DRIVER)
+			{
+				data->status = G_VMX_STATUS_NOT_PERMITTED;
+				break;
+			}
+			data->status = vmxVcpuResume(task->process->id, data->vcpu, &data->error);
 			break;
 		default:
 			data->status = G_VMX_STATUS_FAILED;
