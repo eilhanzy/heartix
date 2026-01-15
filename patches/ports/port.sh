@@ -174,6 +174,23 @@ port_install | sed 's/^/    /' >ghost-build.log 2>&1
 failOnError
 cd $BACK
 
+fix_libtool_paths() {
+	if [ -z "$SYSROOT" ]; then
+		return
+	fi
+	local libdir="$SYSROOT/system/lib"
+	if [ ! -d "$libdir" ]; then
+		return
+	fi
+	while IFS= read -r -d '' la; do
+		sed -i "s|^libdir='/system/lib'|libdir='$libdir'|" "$la"
+		sed -i "s|/system/lib/|$libdir/|g" "$la"
+		sed -i "s|-L/system/lib|-L$libdir|g" "$la"
+	done < <(find "$libdir" -name '*.la' -print0)
+}
+
+fix_libtool_paths
+
 # clean up
 if [ "$DONT_CLEAN_BUILD" = "1" ]; then
 	echo "not cleaning up build directory"
