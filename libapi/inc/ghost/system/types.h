@@ -46,6 +46,40 @@ typedef struct
 	uint16_t es;
 } __attribute__((packed)) g_vm86_registers;
 
+/**
+ * VMX (Intel VT-x) related
+ */
+typedef uint8_t g_vmx_status;
+
+#define G_VMX_STATUS_SUCCESS 0
+#define G_VMX_STATUS_UNSUPPORTED 1
+#define G_VMX_STATUS_DISABLED 2
+#define G_VMX_STATUS_NO_MEMORY 3
+#define G_VMX_STATUS_FAILED 4
+#define G_VMX_STATUS_NOT_PERMITTED 5
+
+typedef uint32_t g_vmx_command;
+
+#define G_VMX_CMD_GET_CAPS 1
+#define G_VMX_CMD_ENABLE 2
+#define G_VMX_CMD_DISABLE 3
+
+typedef struct
+{
+	uint8_t vmx;
+	uint8_t featureControlLocked;
+	uint8_t featureControlVmxon;
+	uint8_t hasEpt;
+	uint8_t hasUnrestrictedGuest;
+	uint8_t active;
+	uint8_t reserved[2];
+	uint32_t revisionId;
+	uint64_t vmxBasic;
+	uint64_t vmxProcCtls;
+	uint64_t vmxProcCtls2;
+	uint64_t vmxEptVpid;
+} __attribute__((packed)) g_vmx_caps;
+
 __END_C
 
 #endif

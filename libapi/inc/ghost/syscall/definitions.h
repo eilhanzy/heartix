@@ -115,6 +115,9 @@ __BEGIN_C
 // Kernquery
 #define G_SYSCALL_KERNQUERY						129
 
+// Virtualization
+#define G_SYSCALL_VMX							130
+
 #define G_SYSCALL_MAX							131
 
 __END_C

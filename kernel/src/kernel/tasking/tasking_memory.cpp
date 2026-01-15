@@ -49,7 +49,16 @@ bool taskingMemoryExtendHeap(g_task* task, int32_t amount, g_address* outAddress
 
 	// Calculate new address
 	g_virtual_address oldBrk = process->heap.brk;
-	g_virtual_address newBrk = oldBrk + amount;
+	int64_t newBrkSigned = (int64_t) oldBrk + (int64_t) amount;
+	if(newBrkSigned < (int64_t) process->heap.start)
+	{
+		logInfo("%! process %i sbrk underflow (brk=%h amount=%i)", "syscall", process->id, oldBrk, amount);
+		*outAddress = (g_address) -1;
+		taskingMemoryTemporarySwitchBack(returnDirectory);
+		mutexRelease(&process->lock);
+		return false;
+	}
+	g_virtual_address newBrk = (g_virtual_address) newBrkSigned;
 
 	// Heap expansion is limited
 	// TODO limit heap expansion again?

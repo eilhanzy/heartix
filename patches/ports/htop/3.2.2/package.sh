@@ -10,8 +10,8 @@ port_install() {
 if [ -z "$PKG_CONFIG" ]; then
 	export PKG_CONFIG=$TARGET-pkg-config.sh
 fi
-	CFLAGS="-D_DEFAULT_SOURCE=1" ../$UNPACKED_DIR/configure --host=$TARGET --prefix=$PREFIX \
-		--disable-hwloc --disable-unicode
+	CFLAGS="-D_DEFAULT_SOURCE=1" LDFLAGS="-static" ../$UNPACKED_DIR/configure --host=$TARGET --prefix=$PREFIX \
+		--disable-hwloc --disable-unicode --enable-static --disable-shared
 	make -j8
 	make DESTDIR=$SYSROOT install
 }

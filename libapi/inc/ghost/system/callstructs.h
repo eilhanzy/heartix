@@ -140,6 +140,21 @@ typedef struct
 	uint32_t pitch;
 } __attribute__((packed)) g_syscall_get_efi_framebuffer;
 
+/**
+ * @field command
+ *      VMX control command
+ * @field status
+ *      status result
+ * @field caps
+ *      capability info (filled for G_VMX_CMD_GET_CAPS)
+ */
+typedef struct
+{
+	g_vmx_command command;
+	g_vmx_status status;
+	g_vmx_caps caps;
+} __attribute__((packed)) g_syscall_vmx;
+
 __END_C
 
 #endif

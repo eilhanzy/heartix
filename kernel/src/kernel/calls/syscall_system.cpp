@@ -29,6 +29,7 @@
 #include "kernel/utils/string.hpp"
 #include "kernel/memory/paging.hpp"
 #include "kernel/boot/limine.hpp"
+#include "kernel/virtualization/vmx.hpp"
 
 void _getBinaryNameWithoutExtension(g_task* task, char buf[], int len)
 {
@@ -178,4 +179,36 @@ void syscallGetEfiFramebuffer(g_task* task, g_syscall_get_efi_framebuffer* data)
 	data->height = framebuffer->height;
 	data->bpp = framebuffer->bpp;
 	data->pitch = framebuffer->pitch;
+}
+
+void syscallVmx(g_task* task, g_syscall_vmx* data)
+{
+	if(!data)
+		return;
+
+	switch(data->command)
+	{
+		case G_VMX_CMD_GET_CAPS:
+			data->status = vmxGetCaps(&data->caps);
+			break;
+		case G_VMX_CMD_ENABLE:
+			if(task->securityLevel > G_SECURITY_LEVEL_DRIVER)
+			{
+				data->status = G_VMX_STATUS_NOT_PERMITTED;
+				break;
+			}
+			data->status = vmxEnable();
+			break;
+		case G_VMX_CMD_DISABLE:
+			if(task->securityLevel > G_SECURITY_LEVEL_DRIVER)
+			{
+				data->status = G_VMX_STATUS_NOT_PERMITTED;
+				break;
+			}
+			data->status = vmxDisable();
+			break;
+		default:
+			data->status = G_VMX_STATUS_FAILED;
+			break;
+	}
 }

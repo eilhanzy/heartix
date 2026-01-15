@@ -134,6 +134,27 @@ void g_io_port_write_dword(uint16_t port, uint32_t data);
  */
 void g_get_efi_framebuffer(g_address* outFramebuffer, uint16_t* outWidth, uint16_t* outHeight, uint16_t* outBpp, uint32_t* outPitch);
 
+/**
+ * Retrieves VMX capability information from the kernel.
+ *
+ * @security-level DRIVER
+ */
+g_vmx_status g_vmx_get_caps(g_vmx_caps* outCaps);
+
+/**
+ * Enables VMX operation on the current CPU.
+ *
+ * @security-level DRIVER
+ */
+g_vmx_status g_vmx_enable();
+
+/**
+ * Disables VMX operation on the current CPU.
+ *
+ * @security-level DRIVER
+ */
+g_vmx_status g_vmx_disable();
+
 __END_C
 
 #endif

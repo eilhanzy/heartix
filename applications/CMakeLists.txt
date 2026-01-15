@@ -33,6 +33,7 @@ set(APPLICATION_LIBRARY_TARGETS
   libdevice
   libinput
   libpci
+  libproperties
   libps2
   libps2driver
   libterminal

@@ -179,22 +179,6 @@ static const char* procfsTaskName(g_task* task, char* buffer, size_t cap)
 	if(identifier && identifier[0])
 		return identifier;
 
-	const char* path = task->process->environment.executablePath;
-	if(path && *path)
-	{
-		const char* lastSlash = path;
-		for(const char* p = path; *p; ++p)
-		{
-			if(*p == '/')
-				lastSlash = p + 1;
-		}
-		if(lastSlash && *lastSlash)
-		{
-			stringCopy(buffer, lastSlash);
-			return buffer;
-		}
-	}
-
 	stringCopy(buffer, "ghost");
 	return buffer;
 }
@@ -216,16 +200,8 @@ static char procfsTaskState(g_task* task)
 
 static uint32_t procfsProcessThreadCount(g_pid pid)
 {
-	uint32_t count = 0;
-	auto iter = hashmapIteratorStart(taskGlobalMap);
-	while(hashmapIteratorHasNext(&iter))
-	{
-		auto entry = hashmapIteratorNext(&iter)->value;
-		if(entry && entry->process && entry->process->id == pid)
-			++count;
-	}
-	hashmapIteratorEnd(&iter);
-	return count;
+	(void) pid;
+	return 1;
 }
 
 static bool procfsBuildRootFile(procfs_node_type type, procfs_buffer* buf)
@@ -241,13 +217,6 @@ static bool procfsBuildRootFile(procfs_node_type type, procfs_buffer* buf)
 			totalTicks += task->statistics.timesScheduled;
 	}
 	hashmapIteratorEnd(&iter);
-
-	auto locals = taskingGetLocal();
-	for(int i = 0; i < processorGetNumberOfProcessors(); ++i)
-	{
-		if(locals[i].scheduling.idleTask)
-			idleTicks += locals[i].scheduling.idleTask->statistics.timesScheduled;
-	}
 
 	uint64_t userTicks = (totalTicks >= idleTicks) ? (totalTicks - idleTicks) : 0;
 
@@ -399,29 +368,24 @@ static bool procfsBuildRootFile(procfs_node_type type, procfs_buffer* buf)
 
 static bool procfsBuildPidFile(procfs_node_type type, g_pid pid, procfs_buffer* buf)
 {
-	g_task* task = taskingGetById(pid);
+	auto iter = hashmapIteratorStart(taskGlobalMap);
+	g_task* task = hashmapGet(taskGlobalMap, pid, (g_task*) nullptr);
 	if(!task || task->status == G_TASK_STATUS_DEAD)
+	{
+		hashmapIteratorEnd(&iter);
 		return false;
-
-	mutexAcquire(&task->lock);
+	}
 
 	char nameBuf[64];
 	const char* name = procfsTaskName(task, nameBuf, sizeof(nameBuf));
 	char state = procfsTaskState(task);
-	g_pid ppid = task->process ? task->process->parentId : G_PID_NONE;
-	if(ppid == G_PID_NONE)
-		ppid = 0;
+	g_pid ppid = 0;
 
 	uint64_t vsize = 0;
 	uint64_t rssPages = 0;
-	if(task->process)
-	{
-		vsize = (uint64_t) task->process->heap.pages * G_PAGE_SIZE;
-		rssPages = task->process->heap.pages;
-	}
 
 	uint64_t utime = task->statistics.timesScheduled;
-	uint32_t threads = procfsProcessThreadCount(task->process ? task->process->id : pid);
+	uint32_t threads = procfsProcessThreadCount(pid);
 
 	if(type == PROCFS_NODE_PID_STAT)
 	{
@@ -443,7 +407,7 @@ static bool procfsBuildPidFile(procfs_node_type type, g_pid pid, procfs_buffer* 
 		procfsBufferAppendChar(buf, ' ');
 		procfsBufferAppendU64(buf, rssPages);
 		procfsBufferAppendChar(buf, '\n');
-		mutexRelease(&task->lock);
+		hashmapIteratorEnd(&iter);
 		return true;
 	}
 
@@ -458,7 +422,7 @@ static bool procfsBuildPidFile(procfs_node_type type, g_pid pid, procfs_buffer* 
 		procfsBufferAppendChar(buf, '\n');
 
 		procfsBufferAppendStr(buf, "Tgid:\t");
-		procfsBufferAppendU64(buf, task->process ? task->process->id : pid);
+		procfsBufferAppendU64(buf, pid);
 		procfsBufferAppendChar(buf, '\n');
 
 		procfsBufferAppendStr(buf, "Pid:\t");
@@ -482,23 +446,14 @@ static bool procfsBuildPidFile(procfs_node_type type, g_pid pid, procfs_buffer* 
 		procfsBufferAppendStr(buf, " kB\n");
 
 		procfsBufferAppendStr(buf, "Uid:\t0 0 0 0\n");
-		mutexRelease(&task->lock);
+		hashmapIteratorEnd(&iter);
 		return true;
 	}
 
 	if(type == PROCFS_NODE_PID_CMDLINE)
 	{
-		const char* args = task->process ? task->process->environment.arguments : nullptr;
-		if(args && *args)
-		{
-			for(const char* c = args; *c; ++c)
-			{
-				char out = (*c == G_CLIARGS_SEPARATOR) ? '\0' : *c;
-				procfsBufferAppendChar(buf, out);
-			}
-		}
 		procfsBufferAppendChar(buf, '\0');
-		mutexRelease(&task->lock);
+		hashmapIteratorEnd(&iter);
 		return true;
 	}
 
@@ -508,11 +463,11 @@ static bool procfsBuildPidFile(procfs_node_type type, g_pid pid, procfs_buffer* 
 		procfsBufferAppendChar(buf, ' ');
 		procfsBufferAppendU64(buf, rssPages);
 		procfsBufferAppendStr(buf, " 0 0 0 0 0\n");
-		mutexRelease(&task->lock);
+		hashmapIteratorEnd(&iter);
 		return true;
 	}
 
-	mutexRelease(&task->lock);
+	hashmapIteratorEnd(&iter);
 	return false;
 }
 
@@ -631,23 +586,7 @@ g_fs_directory_refresh_status filesystemProcfsDelegateRefreshDir(g_fs_node* node
 		}
 		hashmapIteratorEnd(&iter);
 
-		auto entry = node->children;
-		while(entry)
-		{
-			auto next = entry->next;
-			g_fs_node* child = entry->node;
-			g_pid pid = 0;
-			if(procfsParsePid(child->name, &pid))
-			{
-				auto task = taskingGetById(pid);
-				if(!task || task->status == G_TASK_STATUS_DEAD)
-				{
-					filesystemRemoveChildEntry(node, child);
-					filesystemDeleteNode(child);
-				}
-			}
-			entry = next;
-		}
+		// Keep stale pid entries to avoid races with readers traversing children.
 		return G_FS_DIRECTORY_REFRESH_SUCCESSFUL;
 	}
 

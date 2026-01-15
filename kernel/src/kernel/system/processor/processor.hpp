@@ -22,6 +22,7 @@
 #define __KERNEL_PROCESSOR__
 
 #include <ghost/stdint.h>
+#include <stddef.h>
 
 #define G_SSE_STATE_SIZE       512
 #define G_SSE_STATE_ALIGNMENT  0x10
@@ -197,6 +198,11 @@ bool processorHasFeature(g_cpuid_extended_ecx_feature feature);
  * Prints information about the processor.
  */
 void processorPrintInformation();
+
+/**
+ * Writes the processor brand string into the provided buffer (null-terminated).
+ */
+void processorGetBrand(char* out, size_t outLen);
 
 /**
  * Returns the CPU's vendor. "out" must be a pointer to a

@@ -22,17 +22,11 @@
 #include "errno.h"
 #include "ghost/tasks.h"
 
-static int fdset_count(fd_set* set, int nfds)
+static void fdset_clear(fd_set* set)
 {
 	if(!set)
-		return 0;
-	int count = 0;
-	for(int fd = 0; fd < nfds; ++fd)
-	{
-		if(FD_ISSET(fd, set))
-			++count;
-	}
-	return count;
+		return;
+	FD_ZERO(set);
 }
 
 int select(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds, struct timeval* timeout)
@@ -43,19 +37,20 @@ int select(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds, struc
 		return -1;
 	}
 
-	int ready = 0;
-	ready += fdset_count(readfds, nfds);
-	ready += fdset_count(writefds, nfds);
-	ready += fdset_count(exceptfds, nfds);
-
 	if(timeout)
 	{
 		uint64_t millis = timeout->tv_sec * 1000;
 		millis += (timeout->tv_usec + 999) / 1000;
 		if(millis > 0)
 			g_sleep(millis);
-		return ready ? ready : 0;
+	}
+	else
+	{
+		g_sleep(1);
 	}
 
-	return ready;
+	fdset_clear(readfds);
+	fdset_clear(writefds);
+	fdset_clear(exceptfds);
+	return 0;
 }

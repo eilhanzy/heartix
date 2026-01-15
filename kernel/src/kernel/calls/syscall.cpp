@@ -167,6 +167,7 @@ void syscallRegisterAll()
 	_syscallRegister(G_SYSCALL_IRQ_CREATE_REDIRECT, (g_syscall_handler) syscallIrqCreateRedirect);
 	_syscallRegister(G_SYSCALL_AWAIT_IRQ, (g_syscall_handler) syscallAwaitIrq, true);
 	_syscallRegister(G_SYSCALL_GET_EFI_FRAMEBUFFER, (g_syscall_handler) syscallGetEfiFramebuffer);
+	_syscallRegister(G_SYSCALL_VMX, (g_syscall_handler) syscallVmx, true);
 
 	// Kernquery
 	_syscallRegister(G_SYSCALL_KERNQUERY, (g_syscall_handler) syscallKernQuery);

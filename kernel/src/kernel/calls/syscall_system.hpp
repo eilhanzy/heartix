@@ -42,4 +42,6 @@ void syscallAwaitIrq(g_task* task, g_syscall_await_irq* data);
 
 void syscallGetEfiFramebuffer(g_task* task, g_syscall_get_efi_framebuffer* data);
 
+void syscallVmx(g_task* task, g_syscall_vmx* data);
+
 #endif

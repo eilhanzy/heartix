@@ -30,12 +30,11 @@ int poll(struct pollfd* fds, nfds_t nfds, int timeout)
 		return -1;
 	}
 
+	for(nfds_t i = 0; i < nfds; ++i)
+		fds[i].revents = 0;
+
 	if(timeout == 0)
-	{
-		for(nfds_t i = 0; i < nfds; ++i)
-			fds[i].revents = 0;
 		return 0;
-	}
 
 	if(timeout > 0)
 	{
@@ -43,20 +42,10 @@ int poll(struct pollfd* fds, nfds_t nfds, int timeout)
 		if(millis > 0)
 			g_sleep(millis);
 	}
-
-	int ready = 0;
-	for(nfds_t i = 0; i < nfds; ++i)
+	else
 	{
-		if(fds[i].events)
-		{
-			fds[i].revents = fds[i].events;
-			++ready;
-		}
-		else
-		{
-			fds[i].revents = 0;
-		}
+		g_sleep(1);
 	}
 
-	return ready;
+	return 0;
 }

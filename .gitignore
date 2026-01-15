@@ -13,6 +13,7 @@ language.settings.xml
 **/crtobj
 **/bin
 **/.settings
+qemu.log 
 
 tools/changes/changes*
 tools/ramdisk-writer/ramdisk-writer*
