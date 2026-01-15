@@ -337,15 +337,30 @@ static bool procfsBuildRootFile(procfs_node_type type, procfs_buffer* buf)
 
 	if(type == PROCFS_NODE_CPUINFO)
 	{
+		char vendor[13];
+		processorGetVendor(vendor);
+		vendor[12] = 0;
+
+		char brand[49];
+		processorGetBrand(brand, sizeof(brand));
+		const char* modelName = (brand[0] != 0) ? brand : "Unknown CPU";
+
 		int cpus = processorGetNumberOfProcessors();
 		for(int i = 0; i < cpus; ++i)
 		{
 			procfsBufferAppendStr(buf, "processor\t: ");
 			procfsBufferAppendU64(buf, (uint64_t) i);
 			procfsBufferAppendChar(buf, '\n');
-			procfsBufferAppendStr(buf, "vendor_id\t: Ghost\n");
-			procfsBufferAppendStr(buf, "model name\t: Ghost CPU\n");
-			procfsBufferAppendStr(buf, "cpu MHz\t\t: 0\n");
+			procfsBufferAppendStr(buf, "vendor_id\t: ");
+			procfsBufferAppendStr(buf, vendor);
+			procfsBufferAppendChar(buf, '\n');
+			procfsBufferAppendStr(buf, "model name\t: ");
+			procfsBufferAppendStr(buf, modelName);
+			procfsBufferAppendChar(buf, '\n');
+			uint32_t mhz = processorGetFrequencyMHz();
+			procfsBufferAppendStr(buf, "cpu MHz\t\t: ");
+			procfsBufferAppendU64(buf, mhz);
+			procfsBufferAppendStr(buf, ".000\n");
 			procfsBufferAppendStr(buf, "bogomips\t: 0\n\n");
 		}
 		return true;

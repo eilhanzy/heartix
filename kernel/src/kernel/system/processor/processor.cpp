@@ -24,6 +24,7 @@
 #include "kernel/system/system.hpp"
 #include "kernel/logger/logger.hpp"
 #include "kernel/memory/gdt.hpp"
+#include "kernel/system/timing/pit.hpp"
 #include "kernel/panic.hpp"
 
 static g_processor* processors = nullptr;
@@ -218,6 +219,103 @@ void processorGetVendor(char* out)
 	io[0] = ebx;
 	io[1] = edx;
 	io[2] = ecx;
+}
+
+void processorGetBrand(char* out, size_t outLen)
+{
+	if(!out || outLen == 0)
+		return;
+
+	out[0] = 0;
+
+	uint32_t eax;
+	uint32_t ebx;
+	uint32_t ecx;
+	uint32_t edx;
+
+	processorCpuid(0x80000000, &eax, &ebx, &ecx, &edx);
+	if(eax < 0x80000004)
+		return;
+
+	char temp[49];
+	uint32_t* data = reinterpret_cast<uint32_t*>(temp);
+	for(uint32_t i = 0; i < 3; ++i)
+	{
+		processorCpuid(0x80000002 + i, &eax, &ebx, &ecx, &edx);
+		data[i * 4 + 0] = eax;
+		data[i * 4 + 1] = ebx;
+		data[i * 4 + 2] = ecx;
+		data[i * 4 + 3] = edx;
+	}
+	temp[48] = 0;
+
+	size_t end = 48;
+	while(end > 0 && (temp[end - 1] == ' ' || temp[end - 1] == 0))
+		--end;
+	temp[end] = 0;
+
+	size_t copyLen = (end < outLen - 1) ? end : (outLen - 1);
+	for(size_t i = 0; i < copyLen; ++i)
+		out[i] = temp[i];
+	out[copyLen] = 0;
+}
+
+uint32_t processorGetFrequencyMHz()
+{
+	static volatile uint32_t cachedMhz = 0;
+	if(cachedMhz != 0)
+		return cachedMhz;
+
+	uint32_t eax = 0;
+	uint32_t ebx = 0;
+	uint32_t ecx = 0;
+	uint32_t edx = 0;
+
+	processorCpuid(0, &eax, &ebx, &ecx, &edx);
+	uint32_t maxStandard = eax;
+
+	if(maxStandard >= 0x16)
+	{
+		processorCpuid(0x16, &eax, &ebx, &ecx, &edx);
+		if(eax != 0)
+		{
+			cachedMhz = eax;
+			return cachedMhz;
+		}
+	}
+
+	if(maxStandard >= 0x15)
+	{
+		processorCpuid(0x15, &eax, &ebx, &ecx, &edx);
+		if(eax != 0 && ebx != 0 && ecx != 0)
+		{
+			uint64_t freqHz = (static_cast<uint64_t>(ecx) * ebx) / eax;
+			if(freqHz != 0)
+			{
+				cachedMhz = static_cast<uint32_t>(freqHz / 1000000ULL);
+				if(cachedMhz != 0)
+					return cachedMhz;
+			}
+		}
+	}
+
+	if(processorHasFeature(g_cpuid_standard_edx_feature::TSC))
+	{
+		const uint32_t sleepUs = 50000;
+		pitPrepareSleep(sleepUs);
+		uint64_t start = processorReadTsc();
+		pitPerformSleep();
+		uint64_t end = processorReadTsc();
+		uint64_t delta = end - start;
+		if(delta != 0)
+		{
+			uint64_t mhz = (delta + (sleepUs / 2)) / sleepUs;
+			if(mhz != 0)
+				cachedMhz = static_cast<uint32_t>(mhz);
+		}
+	}
+
+	return cachedMhz;
 }
 
 void processorPrintInformation()

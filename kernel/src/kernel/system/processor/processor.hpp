@@ -205,6 +205,11 @@ void processorPrintInformation();
 void processorGetBrand(char* out, size_t outLen);
 
 /**
+ * Returns the estimated base frequency in MHz (0 if unknown).
+ */
+uint32_t processorGetFrequencyMHz();
+
+/**
  * Returns the CPU's vendor. "out" must be a pointer to a
  * buffer of at least 12 bytes.
  */
