@@ -242,17 +242,17 @@ void ps2HandleMouseData(uint8_t value)
 
 void ps2HandlePacket()
 {
-	int8_t flags = mousePacketBuffer[0];
+	uint8_t flags = mousePacketBuffer[0];
 	uint8_t valX = mousePacketBuffer[1];
 	uint8_t valY = mousePacketBuffer[2];
 	int8_t scroll = intelliMouseMode ? (int8_t) mousePacketBuffer[3] : 0;
 
-	int16_t offX = (valX | ((flags & 0x10) ? 0xFF00 : 0));
+	int16_t offX = static_cast<int8_t>(valX);
 	bool overflowX = flags & (1 << 6);
 	if(overflowX)
 		offX = offX < 0 ? INT8_MIN : INT8_MAX;
 
-	int16_t offY = (valY | ((flags & 0x20) ? 0xFF00 : 0));
+	int16_t offY = static_cast<int8_t>(valY);
 	bool overflowY = (flags & (1 << 7));
 	if(overflowY)
 		offY = offY < 0 ? INT8_MIN : INT8_MAX;

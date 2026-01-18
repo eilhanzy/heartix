@@ -32,9 +32,9 @@
 // TODO change values
 #define G_USER_MAXIMUM_HEAP_BREAK				    0xA0000000
 #define G_USER_VIRTUAL_RANGES_START			        0xA0000000
-#define G_USER_VIRTUAL_RANGES_END				    0xC0000000
+#define G_USER_VIRTUAL_RANGES_END				    0xE0000000
 
-#define G_KERNEL_AREA_START					        0xC0000000
+#define G_KERNEL_AREA_START					        0xE0000000
 
 
 // TODO new constants

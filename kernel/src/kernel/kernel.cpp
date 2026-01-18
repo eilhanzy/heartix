@@ -229,7 +229,7 @@ void kernelInitializationThread()
 	// ghmwm disabled for now
 	// kernelSpawnService("/applications/ghmwm.bin", "", G_SECURITY_LEVEL_APPLICATION);
 	// kernelSpawnService("/applications/tester.bin", "", G_SECURITY_LEVEL_APPLICATION);
-	kernelSpawnService("/applications/ghsh.bin", "", G_SECURITY_LEVEL_APPLICATION);
+	kernelSpawnService("/applications/ghsh.bin", "", G_SECURITY_LEVEL_DRIVER);
 	// G_PRETTY_BOOT_STATUS_P(80);
 	// kernelSpawnService("/applications/terminal.bin", "--headless", G_SECURITY_LEVEL_DRIVER);
 

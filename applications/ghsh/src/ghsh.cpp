@@ -138,7 +138,7 @@ static bool ghshStartShell()
 	stdioIn[1] = shellStdoutW;
 	stdioIn[2] = shellStderrW;
 
-	auto shellStatus = g_spawn_poi("/applications/gsh.bin", "", "/", G_SECURITY_LEVEL_APPLICATION, &shellProcess,
+	auto shellStatus = g_spawn_poi("/applications/gsh.bin", "", "/", G_SECURITY_LEVEL_DRIVER, &shellProcess,
 	                               nullptr, stdioIn);
 	if(shellStatus != G_SPAWN_STATUS_SUCCESSFUL)
 	{

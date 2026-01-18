@@ -214,7 +214,30 @@ void syscallVirtToPhys(g_task* task, g_syscall_virt_to_phys* data)
 {
 	data->physicalAddress = 0;
 	if(task->securityLevel > G_SECURITY_LEVEL_DRIVER)
-		return;
+	{
+		auto* pool = task->process ? task->process->virtualRangePool : nullptr;
+		if(!pool)
+			return;
+
+		bool allowed = false;
+		mutexAcquire(&pool->lock);
+		for(g_address_range* range = pool->first; range; range = range->next)
+		{
+			if(!range->used)
+				continue;
+			g_address start = range->base;
+			g_address end = range->base + (static_cast<g_address>(range->pages) * G_PAGE_SIZE);
+			if(data->virtualAddress >= start && data->virtualAddress < end)
+			{
+				allowed = true;
+				break;
+			}
+		}
+		mutexRelease(&pool->lock);
+
+		if(!allowed)
+			return;
+	}
 
 	if(!data->virtualAddress)
 		return;

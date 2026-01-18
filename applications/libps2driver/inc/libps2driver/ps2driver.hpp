@@ -39,6 +39,13 @@ typedef int g_ps2_command;
 /**
  *
  */
+typedef uint8_t g_ps2_subscribe_flags;
+#define G_PS2_SUBSCRIBE_KEYBOARD ((g_ps2_subscribe_flags) (1 << 0))
+#define G_PS2_SUBSCRIBE_MOUSE ((g_ps2_subscribe_flags) (1 << 1))
+
+/**
+ *
+ */
 struct g_ps2_request_header
 {
     g_ps2_command command;
@@ -61,6 +68,7 @@ struct g_ps2_initialize_request
     g_tid mousePartnerTask;
     g_message_transaction keyboardTx;
     g_message_transaction mouseTx;
+    g_ps2_subscribe_flags subscribeFlags;
 }__attribute__((packed));
 
 /**
@@ -106,7 +114,8 @@ struct g_ps2_event_stream
  */
 bool ps2DriverInitialize(g_ps2_event_stream* outStream,
                          g_tid keyboardPartnerTask = G_TID_NONE,
-                         g_tid mousePartnerTask = G_TID_NONE);
+                         g_tid mousePartnerTask = G_TID_NONE,
+                         g_ps2_subscribe_flags subscribeFlags = (G_PS2_SUBSCRIBE_KEYBOARD | G_PS2_SUBSCRIBE_MOUSE));
 
 g_message_receive_status ps2DriverReadKeyboard(g_message_transaction tx, g_ps2_key_event* outEvent,
                                                g_message_receive_mode mode = G_MESSAGE_RECEIVE_MODE_BLOCKING);

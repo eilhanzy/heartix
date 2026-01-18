@@ -15,6 +15,7 @@ struct lve_linux_load_result
 {
 	uint64_t kernel_load_addr;
 	uint64_t kernel_size;
+	uint64_t entry_point;
 	uint64_t boot_params_addr;
 	uint64_t cmdline_addr;
 	uint64_t initrd_addr;

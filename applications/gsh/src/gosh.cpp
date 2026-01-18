@@ -310,6 +310,23 @@ std::string gshFindProgram(std::string cwd, std::string name)
 	return name;
 }
 
+static bool gshEndsWith(const std::string& value, const char* suffix)
+{
+	size_t suffixLen = strlen(suffix);
+	return value.size() >= suffixLen &&
+	       value.compare(value.size() - suffixLen, suffixLen, suffix) == 0;
+}
+
+static g_security_level gshSecurityLevelForProgram(const std::string& programPath,
+                                                    const std::string& programName)
+{
+	if(programName == "lve" || programName == "lve.bin" || gshEndsWith(programPath, "/lve.bin"))
+	{
+		return G_SECURITY_LEVEL_DRIVER;
+	}
+	return G_SECURITY_LEVEL_APPLICATION;
+}
+
 bool gshHandleBuiltin(program_call_t* call)
 {
 	std::string cwd(cwdbuf);
@@ -354,7 +371,8 @@ bool gshHandleBuiltin(program_call_t* call)
 	if(call->program == "bg")
 	{
 		std::string program = gshFindProgram(cwd, call->arguments.at(0));
-		g_spawn(program.c_str(), "", "", G_SECURITY_LEVEL_APPLICATION);
+		g_security_level level = gshSecurityLevelForProgram(program, call->arguments.at(0));
+		g_spawn(program.c_str(), "", "", level);
 		return true;
 	}
 
@@ -454,9 +472,11 @@ void gshProcessExpression(pipe_expression_t* pipeexpr)
 		// do spawning
 		g_pid pidCurrent;
 		g_fd stdioOut[3];
+		std::string programPath = gshFindProgram(std::string(cwdbuf), call->program);
+		g_security_level level = gshSecurityLevelForProgram(programPath, call->program);
 		g_spawn_status status = g_spawn_poi(
-				gshFindProgram(std::string(cwdbuf), call->program).c_str(),
-				argstream.str().c_str(), cwdbuf, G_SECURITY_LEVEL_APPLICATION, &pidCurrent, stdioOut, stdioIn);
+				programPath.c_str(), argstream.str().c_str(), cwdbuf, level,
+				&pidCurrent, stdioOut, stdioIn);
 
 		// check result
 		if(status == G_SPAWN_STATUS_SUCCESSFUL)

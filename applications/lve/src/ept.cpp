@@ -117,8 +117,18 @@ bool lveGuestAllocate(lve_guest_memory* mem, uint64_t sizeBytes)
 
 	memset(mem, 0, sizeof(*mem));
 
-	const uint64_t sizeAligned = G_PAGE_ALIGN_UP(sizeBytes);
-	void* base = g_alloc_mem(sizeAligned);
+	uint64_t sizeAligned = G_PAGE_ALIGN_UP(sizeBytes);
+	void* base = nullptr;
+	const uint64_t step = 1ull * 1024ull * 1024ull;
+	while(sizeAligned >= G_PAGE_SIZE)
+	{
+		base = g_alloc_mem(sizeAligned);
+		if(base)
+			break;
+		if(sizeAligned <= step)
+			break;
+		sizeAligned -= step;
+	}
 	if(!base)
 		return false;
 

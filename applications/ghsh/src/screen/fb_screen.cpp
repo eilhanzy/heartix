@@ -119,10 +119,6 @@ uint32_t fb_screen_t::mapColor(screen_color_t color) const
 
 void fb_screen_t::drawChar(int x, int y, char c)
 {
-	uint8_t* fontChar = bitmapFontGetChar(c);
-	if(!fontChar)
-		return;
-
 	int onScreenX = x * bitmapFontCharWidth;
 	int onScreenY = y * bitmapFontCharHeight;
 	if(onScreenX > mode.resX - bitmapFontCharWidth ||
@@ -131,10 +127,35 @@ void fb_screen_t::drawChar(int x, int y, char c)
 		return;
 	}
 
+	uint8_t* fontChar = bitmapFontGetChar(c);
 	uint8_t* fb = reinterpret_cast<uint8_t*>(mode.lfb);
 	uint32_t pitch = mode.bpsl;
 	uint32_t fg = fgColor;
 	uint32_t bg = bgColor;
+
+	if(!fontChar)
+	{
+		for(int cy = 0; cy < bitmapFontCharHeight; cy++)
+		{
+			uint8_t* row = fb + (onScreenY + cy) * pitch + (onScreenX * (mode.bpp / 8));
+			for(int cx = 0; cx < bitmapFontCharWidth; cx++)
+			{
+				if(mode.bpp == 32)
+				{
+					uint32_t* pixel = reinterpret_cast<uint32_t*>(row + cx * 4);
+					*pixel = fg;
+				}
+				else if(mode.bpp == 24)
+				{
+					uint8_t* pixel = row + cx * 3;
+					pixel[0] = fg & 0xFF;
+					pixel[1] = (fg >> 8) & 0xFF;
+					pixel[2] = (fg >> 16) & 0xFF;
+				}
+			}
+		}
+		return;
+	}
 
 	for(int cy = 0; cy < bitmapFontCharHeight; cy++)
 	{
@@ -168,7 +189,7 @@ bool fb_screen_t::initialize(g_user_mutex exitFlag)
 
 	clearPixels();
 
-	if(!ps2DriverInitialize(&inputStream))
+	if(!ps2DriverInitialize(&inputStream, G_TID_NONE, G_TID_NONE, G_PS2_SUBSCRIBE_KEYBOARD))
 		return false;
 
 	fgColor = mapColor(SC_WHITE);
@@ -248,14 +269,29 @@ void fb_screen_t::remove()
 void fb_screen_t::setCursor(int x, int y)
 {
 	g_mutex_acquire(lock);
+	if(columns <= 0 || rows <= 0)
+	{
+		cursorX = 0;
+		cursorY = 0;
+		g_mutex_release(lock);
+		return;
+	}
 	if(x < 0)
 		x = 0;
 	if(y < 0)
 		y = 0;
 	if(x >= columns)
-		x = columns - 1;
+	{
+		y += x / columns;
+		x = x % columns;
+	}
 	if(y >= rows)
+	{
+		int scrolls = y - (rows - 1);
+		for(int i = 0; i < scrolls; ++i)
+			scrollUp();
 		y = rows - 1;
+	}
 	cursorX = x;
 	cursorY = y;
 	g_mutex_release(lock);

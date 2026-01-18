@@ -10,6 +10,7 @@
 
 #include "kernel/logger/logger.hpp"
 #include "kernel/memory/heap.hpp"
+#include "kernel/memory/gdt.hpp"
 #include "kernel/memory/memory.hpp"
 #include "kernel/memory/paging.hpp"
 #include "kernel/system/interrupts/interrupts.hpp"
@@ -21,13 +22,20 @@ namespace
 
 constexpr uint32_t IA32_FEATURE_CONTROL = 0x3A;
 constexpr uint32_t IA32_VMX_BASIC = 0x480;
+constexpr uint32_t IA32_VMX_PINBASED_CTLS = 0x481;
 constexpr uint32_t IA32_VMX_PROCBASED_CTLS = 0x482;
+constexpr uint32_t IA32_VMX_EXIT_CTLS = 0x483;
+constexpr uint32_t IA32_VMX_ENTRY_CTLS = 0x484;
 constexpr uint32_t IA32_VMX_CR0_FIXED0 = 0x486;
 constexpr uint32_t IA32_VMX_CR0_FIXED1 = 0x487;
 constexpr uint32_t IA32_VMX_CR4_FIXED0 = 0x488;
 constexpr uint32_t IA32_VMX_CR4_FIXED1 = 0x489;
 constexpr uint32_t IA32_VMX_PROCBASED_CTLS2 = 0x48B;
 constexpr uint32_t IA32_VMX_EPT_VPID_CAP = 0x48C;
+constexpr uint32_t IA32_VMX_TRUE_PINBASED_CTLS = 0x48D;
+constexpr uint32_t IA32_VMX_TRUE_PROCBASED_CTLS = 0x48E;
+constexpr uint32_t IA32_VMX_TRUE_EXIT_CTLS = 0x48F;
+constexpr uint32_t IA32_VMX_TRUE_ENTRY_CTLS = 0x490;
 
 constexpr uint64_t FEATURE_CONTROL_LOCK = (1ULL << 0);
 constexpr uint64_t FEATURE_CONTROL_VMXON = (1ULL << 2);
@@ -37,6 +45,96 @@ constexpr uint32_t PROCBASED_CTL2_EPT = (1u << 1);
 constexpr uint32_t PROCBASED_CTL2_UNRESTRICTED = (1u << 7);
 
 constexpr uint64_t CR4_VMXE = (1ULL << 13);
+
+constexpr uint32_t VMCS_PIN_BASED_CTLS = 0x4000;
+constexpr uint32_t VMCS_PROC_BASED_CTLS = 0x4002;
+constexpr uint32_t VMCS_EXIT_CTLS = 0x400C;
+constexpr uint32_t VMCS_ENTRY_CTLS = 0x4012;
+constexpr uint32_t VMCS_PROC_BASED_CTLS2 = 0x401E;
+
+constexpr uint32_t VMCS_GUEST_ES_SELECTOR = 0x0800;
+constexpr uint32_t VMCS_GUEST_CS_SELECTOR = 0x0802;
+constexpr uint32_t VMCS_GUEST_SS_SELECTOR = 0x0804;
+constexpr uint32_t VMCS_GUEST_DS_SELECTOR = 0x0806;
+constexpr uint32_t VMCS_GUEST_FS_SELECTOR = 0x0808;
+constexpr uint32_t VMCS_GUEST_GS_SELECTOR = 0x080A;
+constexpr uint32_t VMCS_GUEST_LDTR_SELECTOR = 0x080C;
+constexpr uint32_t VMCS_GUEST_TR_SELECTOR = 0x080E;
+constexpr uint32_t VMCS_GUEST_ES_LIMIT = 0x4800;
+constexpr uint32_t VMCS_GUEST_CS_LIMIT = 0x4802;
+constexpr uint32_t VMCS_GUEST_SS_LIMIT = 0x4804;
+constexpr uint32_t VMCS_GUEST_DS_LIMIT = 0x4806;
+constexpr uint32_t VMCS_GUEST_FS_LIMIT = 0x4808;
+constexpr uint32_t VMCS_GUEST_GS_LIMIT = 0x480A;
+constexpr uint32_t VMCS_GUEST_LDTR_LIMIT = 0x480C;
+constexpr uint32_t VMCS_GUEST_TR_LIMIT = 0x480E;
+constexpr uint32_t VMCS_GUEST_GDTR_LIMIT = 0x4810;
+constexpr uint32_t VMCS_GUEST_IDTR_LIMIT = 0x4812;
+constexpr uint32_t VMCS_GUEST_ES_ACCESS = 0x4814;
+constexpr uint32_t VMCS_GUEST_CS_ACCESS = 0x4816;
+constexpr uint32_t VMCS_GUEST_SS_ACCESS = 0x4818;
+constexpr uint32_t VMCS_GUEST_DS_ACCESS = 0x481A;
+constexpr uint32_t VMCS_GUEST_FS_ACCESS = 0x481C;
+constexpr uint32_t VMCS_GUEST_GS_ACCESS = 0x481E;
+constexpr uint32_t VMCS_GUEST_LDTR_ACCESS = 0x4820;
+constexpr uint32_t VMCS_GUEST_TR_ACCESS = 0x4822;
+constexpr uint32_t VMCS_GUEST_INTERRUPTIBILITY = 0x4824;
+constexpr uint32_t VMCS_GUEST_ACTIVITY_STATE = 0x4826;
+constexpr uint32_t VMCS_GUEST_CR0 = 0x6800;
+constexpr uint32_t VMCS_GUEST_CR3 = 0x6802;
+constexpr uint32_t VMCS_GUEST_CR4 = 0x6804;
+constexpr uint32_t VMCS_GUEST_ES_BASE = 0x6806;
+constexpr uint32_t VMCS_GUEST_CS_BASE = 0x6808;
+constexpr uint32_t VMCS_GUEST_SS_BASE = 0x680A;
+constexpr uint32_t VMCS_GUEST_DS_BASE = 0x680C;
+constexpr uint32_t VMCS_GUEST_FS_BASE = 0x680E;
+constexpr uint32_t VMCS_GUEST_GS_BASE = 0x6810;
+constexpr uint32_t VMCS_GUEST_LDTR_BASE = 0x6812;
+constexpr uint32_t VMCS_GUEST_TR_BASE = 0x6814;
+constexpr uint32_t VMCS_GUEST_GDTR_BASE = 0x6816;
+constexpr uint32_t VMCS_GUEST_IDTR_BASE = 0x6818;
+constexpr uint32_t VMCS_GUEST_DR7 = 0x681A;
+constexpr uint32_t VMCS_GUEST_RSP = 0x681C;
+constexpr uint32_t VMCS_GUEST_RIP = 0x681E;
+constexpr uint32_t VMCS_GUEST_RFLAGS = 0x6820;
+constexpr uint32_t VMCS_GUEST_PENDING_DBG = 0x6822;
+constexpr uint32_t VMCS_GUEST_SYSENTER_ESP = 0x6824;
+constexpr uint32_t VMCS_GUEST_SYSENTER_EIP = 0x6826;
+
+constexpr uint32_t VMCS_HOST_ES_SELECTOR = 0x0C00;
+constexpr uint32_t VMCS_HOST_CS_SELECTOR = 0x0C02;
+constexpr uint32_t VMCS_HOST_SS_SELECTOR = 0x0C04;
+constexpr uint32_t VMCS_HOST_DS_SELECTOR = 0x0C06;
+constexpr uint32_t VMCS_HOST_FS_SELECTOR = 0x0C08;
+constexpr uint32_t VMCS_HOST_GS_SELECTOR = 0x0C0A;
+constexpr uint32_t VMCS_HOST_TR_SELECTOR = 0x0C0C;
+constexpr uint32_t VMCS_HOST_SYSENTER_CS = 0x4C00;
+constexpr uint32_t VMCS_HOST_CR0 = 0x6C00;
+constexpr uint32_t VMCS_HOST_CR3 = 0x6C02;
+constexpr uint32_t VMCS_HOST_CR4 = 0x6C04;
+constexpr uint32_t VMCS_HOST_FS_BASE = 0x6C06;
+constexpr uint32_t VMCS_HOST_GS_BASE = 0x6C08;
+constexpr uint32_t VMCS_HOST_TR_BASE = 0x6C0A;
+constexpr uint32_t VMCS_HOST_GDTR_BASE = 0x6C0C;
+constexpr uint32_t VMCS_HOST_IDTR_BASE = 0x6C0E;
+constexpr uint32_t VMCS_HOST_SYSENTER_ESP = 0x6C10;
+constexpr uint32_t VMCS_HOST_SYSENTER_EIP = 0x6C12;
+constexpr uint32_t VMCS_HOST_RSP = 0x6C14;
+constexpr uint32_t VMCS_HOST_RIP = 0x6C16;
+constexpr uint32_t VMCS_HOST_IA32_EFER = 0x2C02;
+constexpr uint32_t VMCS_HOST_IA32_PAT = 0x2C00;
+constexpr uint32_t VMCS_HOST_IA32_PERF_GLOBAL_CTRL = 0x2C04;
+
+constexpr uint32_t VMCS_EPT_POINTER = 0x201A;
+
+constexpr uint64_t IA32_FS_BASE = 0xC0000100;
+constexpr uint64_t IA32_GS_BASE = 0xC0000101;
+constexpr uint64_t IA32_EFER = 0xC0000080;
+constexpr uint64_t IA32_PAT = 0x277;
+constexpr uint64_t IA32_PERF_GLOBAL_CTRL = 0x38F;
+constexpr uint64_t IA32_SYSENTER_CS = 0x174;
+constexpr uint64_t IA32_SYSENTER_ESP = 0x175;
+constexpr uint64_t IA32_SYSENTER_EIP = 0x176;
 
 struct vmx_cpu_state
 {
@@ -58,6 +156,12 @@ struct vmx_vcpu
 	g_virtual_address vmcsRegion;
 	g_physical_address vmcsPhys;
 	uint32_t revisionId;
+	g_virtual_address hostStack;
+	g_virtual_address hostStackTop;
+	g_virtual_address hostSavedRsp;
+	g_virtual_address hostSavedRip;
+	uint32_t lastExitReason;
+	uint64_t lastExitQualification;
 	vmx_vcpu* next;
 };
 
@@ -65,6 +169,8 @@ g_mutex vmxVcpuLock;
 bool vmxVcpuLockReady = false;
 vmx_vcpu* vmxVcpuList = nullptr;
 g_vmx_vcpu_id vmxNextVcpuId = 1;
+vmx_vcpu** vmxActiveVcpu = nullptr;
+bool vmxActiveVcpuReady = false;
 
 uint64_t vmxReadMsr(uint32_t msr)
 {
@@ -95,6 +201,13 @@ uint64_t vmxReadCr4()
 {
 	uint64_t value = 0;
 	asm volatile("mov %%cr4, %0" : "=r"(value));
+	return value;
+}
+
+uint64_t vmxReadCr3()
+{
+	uint64_t value = 0;
+	asm volatile("mov %%cr3, %0" : "=r"(value));
 	return value;
 }
 
@@ -196,6 +309,195 @@ uint32_t vmxReadInstructionError()
 	return static_cast<uint32_t>(error);
 }
 
+struct vmx_desc_table
+{
+	uint16_t limit;
+	uint64_t base;
+} __attribute__((packed));
+
+vmx_desc_table vmxReadGdtr()
+{
+	vmx_desc_table table{};
+	asm volatile("sgdt %0" : "=m"(table));
+	return table;
+}
+
+vmx_desc_table vmxReadIdtr()
+{
+	vmx_desc_table table{};
+	asm volatile("sidt %0" : "=m"(table));
+	return table;
+}
+
+uint16_t vmxReadCs()
+{
+	uint16_t sel = 0;
+	asm volatile("mov %%cs, %0" : "=r"(sel));
+	return sel;
+}
+
+uint16_t vmxReadSs()
+{
+	uint16_t sel = 0;
+	asm volatile("mov %%ss, %0" : "=r"(sel));
+	return sel;
+}
+
+uint16_t vmxReadDs()
+{
+	uint16_t sel = 0;
+	asm volatile("mov %%ds, %0" : "=r"(sel));
+	return sel;
+}
+
+uint16_t vmxReadEs()
+{
+	uint16_t sel = 0;
+	asm volatile("mov %%es, %0" : "=r"(sel));
+	return sel;
+}
+
+uint16_t vmxReadFs()
+{
+	uint16_t sel = 0;
+	asm volatile("mov %%fs, %0" : "=r"(sel));
+	return sel;
+}
+
+uint16_t vmxReadGs()
+{
+	uint16_t sel = 0;
+	asm volatile("mov %%gs, %0" : "=r"(sel));
+	return sel;
+}
+
+uint16_t vmxReadTr()
+{
+	uint16_t sel = 0;
+	asm volatile("str %0" : "=r"(sel));
+	return sel;
+}
+
+uint64_t vmxSegmentBaseFromDescriptor(const g_gdt_descriptor& desc)
+{
+	uint64_t base = desc.baseLow;
+	base |= static_cast<uint64_t>(desc.baseMiddle) << 16;
+	base |= static_cast<uint64_t>(desc.baseHigh) << 24;
+	return base;
+}
+
+uint64_t vmxReadTssBase(const vmx_desc_table& gdtr, uint16_t selector)
+{
+	if(selector == 0)
+		return 0;
+
+	auto* tssDesc = reinterpret_cast<const g_gdt_tss_descriptor*>(
+			gdtr.base + (selector & ~0x7u));
+	uint64_t base = vmxSegmentBaseFromDescriptor(tssDesc->main);
+	base |= static_cast<uint64_t>(tssDesc->baseUpper) << 32;
+	return base;
+}
+
+bool vmxEnsureActiveVcpuArray()
+{
+	if(vmxActiveVcpuReady && vmxActiveVcpu)
+		return true;
+
+	const uint32_t cores = processorGetNumberOfProcessors();
+	if(cores == 0)
+		return false;
+
+	vmxActiveVcpu = static_cast<vmx_vcpu**>(heapAllocateClear(sizeof(vmx_vcpu*) * cores));
+	vmxActiveVcpuReady = vmxActiveVcpu != nullptr;
+	return vmxActiveVcpuReady;
+}
+
+extern "C" void vmxExitHandler();
+
+void vmxWriteHostState(vmx_vcpu* vcpu)
+{
+	vmx_desc_table gdtr = vmxReadGdtr();
+	vmx_desc_table idtr = vmxReadIdtr();
+	uint16_t cs = vmxReadCs();
+	uint16_t ss = vmxReadSs();
+	uint16_t ds = vmxReadDs();
+	uint16_t es = vmxReadEs();
+	uint16_t fs = vmxReadFs();
+	uint16_t gs = vmxReadGs();
+	uint16_t tr = vmxReadTr();
+
+	uint64_t fsBase = vmxReadMsr(IA32_FS_BASE);
+	uint64_t gsBase = vmxReadMsr(IA32_GS_BASE);
+	uint64_t efer = vmxReadMsr(IA32_EFER);
+	uint64_t pat = vmxReadMsr(IA32_PAT);
+	uint64_t perf = vmxReadMsr(IA32_PERF_GLOBAL_CTRL);
+	uint64_t sysenterCs = vmxReadMsr(IA32_SYSENTER_CS);
+	uint64_t sysenterEsp = vmxReadMsr(IA32_SYSENTER_ESP);
+	uint64_t sysenterEip = vmxReadMsr(IA32_SYSENTER_EIP);
+
+	uint64_t hostRsp = vcpu->hostStackTop & ~0xFull;
+	uint64_t hostRip = reinterpret_cast<uint64_t>(&vmxExitHandler);
+	uint64_t trBase = vmxReadTssBase(gdtr, tr);
+
+	vmxVmwrite(VMCS_HOST_CR0, vmxReadCr0());
+	vmxVmwrite(VMCS_HOST_CR3, vmxReadCr3());
+	vmxVmwrite(VMCS_HOST_CR4, vmxReadCr4());
+
+	vmxVmwrite(VMCS_HOST_ES_SELECTOR, es);
+	vmxVmwrite(VMCS_HOST_CS_SELECTOR, cs);
+	vmxVmwrite(VMCS_HOST_SS_SELECTOR, ss);
+	vmxVmwrite(VMCS_HOST_DS_SELECTOR, ds);
+	vmxVmwrite(VMCS_HOST_FS_SELECTOR, fs);
+	vmxVmwrite(VMCS_HOST_GS_SELECTOR, gs);
+	vmxVmwrite(VMCS_HOST_TR_SELECTOR, tr);
+
+	vmxVmwrite(VMCS_HOST_FS_BASE, fsBase);
+	vmxVmwrite(VMCS_HOST_GS_BASE, gsBase);
+	vmxVmwrite(VMCS_HOST_TR_BASE, trBase);
+	vmxVmwrite(VMCS_HOST_GDTR_BASE, gdtr.base);
+	vmxVmwrite(VMCS_HOST_IDTR_BASE, idtr.base);
+
+	vmxVmwrite(VMCS_HOST_SYSENTER_CS, sysenterCs);
+	vmxVmwrite(VMCS_HOST_SYSENTER_ESP, sysenterEsp);
+	vmxVmwrite(VMCS_HOST_SYSENTER_EIP, sysenterEip);
+	vmxVmwrite(VMCS_HOST_IA32_EFER, efer);
+	vmxVmwrite(VMCS_HOST_IA32_PAT, pat);
+	vmxVmwrite(VMCS_HOST_IA32_PERF_GLOBAL_CTRL, perf);
+
+	vmxVmwrite(VMCS_HOST_RSP, hostRsp);
+	vmxVmwrite(VMCS_HOST_RIP, hostRip);
+}
+
+__attribute__((noreturn))
+void vmxExitHandler()
+{
+	uint32_t cpu = processorGetCurrentId();
+	vmx_vcpu* vcpu = (vmxActiveVcpu && cpu < vmxStateCount) ? vmxActiveVcpu[cpu] : nullptr;
+	if(vcpu)
+	{
+		uint64_t reason = 0;
+		uint64_t qualification = 0;
+		vmxVmread(0x4402, &reason);
+		vmxVmread(0x6400, &qualification);
+		vcpu->lastExitReason = static_cast<uint32_t>(reason);
+		vcpu->lastExitQualification = qualification;
+	}
+
+	if(!vcpu || !vcpu->hostSavedRip || !vcpu->hostSavedRsp)
+	{
+		for(;;)
+			asm volatile("hlt");
+	}
+
+	asm volatile(
+		"mov %0, %%rsp\n"
+		"jmp *%1\n"
+		:
+		: "r"(vcpu->hostSavedRsp), "r"(vcpu->hostSavedRip)
+		: "memory");
+	__builtin_unreachable();
+}
+
 bool vmxEnsureStateArray()
 {
 	if(!vmxStateLockReady)
@@ -265,8 +567,26 @@ g_vmx_status vmxGetCaps(g_vmx_caps* caps)
 	caps->featureControlVmxon = (featureControl & FEATURE_CONTROL_VMXON) ? 1 : 0;
 
 	caps->vmxBasic = vmxReadMsr(IA32_VMX_BASIC);
-	caps->vmxProcCtls = vmxReadMsr(IA32_VMX_PROCBASED_CTLS);
+	const bool useTrueControls = (caps->vmxBasic & (1ULL << 55)) != 0;
+	if(useTrueControls)
+	{
+		caps->vmxPinCtls = vmxReadMsr(IA32_VMX_TRUE_PINBASED_CTLS);
+		caps->vmxProcCtls = vmxReadMsr(IA32_VMX_TRUE_PROCBASED_CTLS);
+		caps->vmxExitCtls = vmxReadMsr(IA32_VMX_TRUE_EXIT_CTLS);
+		caps->vmxEntryCtls = vmxReadMsr(IA32_VMX_TRUE_ENTRY_CTLS);
+	}
+	else
+	{
+		caps->vmxPinCtls = vmxReadMsr(IA32_VMX_PINBASED_CTLS);
+		caps->vmxProcCtls = vmxReadMsr(IA32_VMX_PROCBASED_CTLS);
+		caps->vmxExitCtls = vmxReadMsr(IA32_VMX_EXIT_CTLS);
+		caps->vmxEntryCtls = vmxReadMsr(IA32_VMX_ENTRY_CTLS);
+	}
 	caps->vmxProcCtls2 = vmxReadMsr(IA32_VMX_PROCBASED_CTLS2);
+	caps->vmxCr0Fixed0 = vmxReadMsr(IA32_VMX_CR0_FIXED0);
+	caps->vmxCr0Fixed1 = vmxReadMsr(IA32_VMX_CR0_FIXED1);
+	caps->vmxCr4Fixed0 = vmxReadMsr(IA32_VMX_CR4_FIXED0);
+	caps->vmxCr4Fixed1 = vmxReadMsr(IA32_VMX_CR4_FIXED1);
 	caps->vmxEptVpid = vmxReadMsr(IA32_VMX_EPT_VPID_CAP);
 	caps->revisionId = static_cast<uint32_t>(caps->vmxBasic & 0x7FFFFFFF);
 
@@ -421,6 +741,8 @@ g_vmx_status vmxVcpuCreate(g_pid owner, g_vmx_vcpu_id* outId)
 
 	if(!vmxEnsureVcpuList())
 		return G_VMX_STATUS_FAILED;
+	if(!vmxEnsureActiveVcpuArray())
+		return G_VMX_STATUS_FAILED;
 
 	mutexAcquire(&vmxVcpuLock);
 
@@ -440,6 +762,15 @@ g_vmx_status vmxVcpuCreate(g_pid owner, g_vmx_vcpu_id* outId)
 		return G_VMX_STATUS_NO_MEMORY;
 	}
 
+	g_virtual_address hostStack = memoryAllocateKernel(4);
+	if(!hostStack)
+	{
+		memoryFreeKernelRange(vmcsRegion);
+		heapFree(vcpu);
+		mutexRelease(&vmxVcpuLock);
+		return G_VMX_STATUS_NO_MEMORY;
+	}
+
 	g_physical_address vmcsPhys = pagingVirtualToPhysical(vmcsRegion);
 	memorySetBytes(reinterpret_cast<void*>(vmcsRegion), 0, G_PAGE_SIZE);
 	*reinterpret_cast<uint32_t*>(vmcsRegion) = revisionId;
@@ -449,6 +780,8 @@ g_vmx_status vmxVcpuCreate(g_pid owner, g_vmx_vcpu_id* outId)
 	vcpu->vmcsRegion = vmcsRegion;
 	vcpu->vmcsPhys = vmcsPhys;
 	vcpu->revisionId = revisionId;
+	vcpu->hostStack = hostStack;
+	vcpu->hostStackTop = hostStack + (4 * G_PAGE_SIZE);
 	vcpu->next = vmxVcpuList;
 	vmxVcpuList = vcpu;
 
@@ -479,6 +812,8 @@ g_vmx_status vmxVcpuDestroy(g_pid owner, g_vmx_vcpu_id id)
 				vmxClear(entry->vmcsPhys);
 			if(entry->vmcsRegion)
 				memoryFreeKernelRange(entry->vmcsRegion);
+			if(entry->hostStack)
+				memoryFreeKernelRange(entry->hostStack);
 			heapFree(entry);
 			mutexRelease(&vmxVcpuLock);
 			return G_VMX_STATUS_SUCCESS;
@@ -610,13 +945,69 @@ g_vmx_status vmxVcpuLaunch(g_pid owner, g_vmx_vcpu_id id, uint32_t* outError)
 	}
 	bool ok = vmxLoad(vcpu->vmcsPhys);
 	if(ok)
-		ok = vmxLaunch();
-	uint32_t error = ok ? 0 : vmxReadInstructionError();
+		vmxWriteHostState(vcpu);
+
+	if(ok && vmxActiveVcpu && processorGetCurrentId() < vmxStateCount)
+		vmxActiveVcpu[processorGetCurrentId()] = vcpu;
+
+	uint8_t status = 0;
+	if(ok)
+	{
+		uint64_t* ripSlot = &vcpu->hostSavedRip;
+		uint64_t* rspSlot = &vcpu->hostSavedRsp;
+		asm volatile(
+			"leaq 1f(%%rip), %%r10\n"
+			"mov %%r10, (%1)\n"
+			"pushfq\n"
+			"push %%rax\n"
+			"push %%rcx\n"
+			"push %%rdx\n"
+			"push %%rbx\n"
+			"push %%rbp\n"
+			"push %%rsi\n"
+			"push %%rdi\n"
+			"push %%r8\n"
+			"push %%r9\n"
+			"push %%r10\n"
+			"push %%r11\n"
+			"push %%r12\n"
+			"push %%r13\n"
+			"push %%r14\n"
+			"push %%r15\n"
+			"mov %%rsp, (%2)\n"
+			"vmlaunch\n"
+			"setna %0\n"
+			"jmp 2f\n"
+			"1:\n"
+			"movb $0, %0\n"
+			"2:\n"
+			"pop %%r15\n"
+			"pop %%r14\n"
+			"pop %%r13\n"
+			"pop %%r12\n"
+			"pop %%r11\n"
+			"pop %%r10\n"
+			"pop %%r9\n"
+			"pop %%r8\n"
+			"pop %%rdi\n"
+			"pop %%rsi\n"
+			"pop %%rbp\n"
+			"pop %%rbx\n"
+			"pop %%rdx\n"
+			"pop %%rcx\n"
+			"pop %%rax\n"
+			"popfq\n"
+			: "=rm"(status)
+			: "r"(ripSlot), "r"(rspSlot)
+			: "cc", "memory");
+	}
+
+	uint32_t error = (status == 0) ? 0 : vmxReadInstructionError();
 	mutexRelease(&vmxVcpuLock);
 
 	if(outError)
 		*outError = error;
-	return ok ? G_VMX_STATUS_SUCCESS : G_VMX_STATUS_FAILED;
+	return (ok && status == 0) ? G_VMX_STATUS_SUCCESS : G_VMX_STATUS_FAILED;
 }
 
 g_vmx_status vmxVcpuResume(g_pid owner, g_vmx_vcpu_id id, uint32_t* outError)
@@ -636,11 +1027,67 @@ g_vmx_status vmxVcpuResume(g_pid owner, g_vmx_vcpu_id id, uint32_t* outError)
 	}
 	bool ok = vmxLoad(vcpu->vmcsPhys);
 	if(ok)
-		ok = vmxResume();
-	uint32_t error = ok ? 0 : vmxReadInstructionError();
+		vmxWriteHostState(vcpu);
+
+	if(ok && vmxActiveVcpu && processorGetCurrentId() < vmxStateCount)
+		vmxActiveVcpu[processorGetCurrentId()] = vcpu;
+
+	uint8_t status = 0;
+	if(ok)
+	{
+		uint64_t* ripSlot = &vcpu->hostSavedRip;
+		uint64_t* rspSlot = &vcpu->hostSavedRsp;
+		asm volatile(
+			"leaq 1f(%%rip), %%r10\n"
+			"mov %%r10, (%1)\n"
+			"pushfq\n"
+			"push %%rax\n"
+			"push %%rcx\n"
+			"push %%rdx\n"
+			"push %%rbx\n"
+			"push %%rbp\n"
+			"push %%rsi\n"
+			"push %%rdi\n"
+			"push %%r8\n"
+			"push %%r9\n"
+			"push %%r10\n"
+			"push %%r11\n"
+			"push %%r12\n"
+			"push %%r13\n"
+			"push %%r14\n"
+			"push %%r15\n"
+			"mov %%rsp, (%2)\n"
+			"vmresume\n"
+			"setna %0\n"
+			"jmp 2f\n"
+			"1:\n"
+			"movb $0, %0\n"
+			"2:\n"
+			"pop %%r15\n"
+			"pop %%r14\n"
+			"pop %%r13\n"
+			"pop %%r12\n"
+			"pop %%r11\n"
+			"pop %%r10\n"
+			"pop %%r9\n"
+			"pop %%r8\n"
+			"pop %%rdi\n"
+			"pop %%rsi\n"
+			"pop %%rbp\n"
+			"pop %%rbx\n"
+			"pop %%rdx\n"
+			"pop %%rcx\n"
+			"pop %%rax\n"
+			"popfq\n"
+			: "=rm"(status)
+			: "r"(ripSlot), "r"(rspSlot)
+			: "cc", "memory");
+	}
+
+	uint32_t error = (status == 0) ? 0 : vmxReadInstructionError();
 	mutexRelease(&vmxVcpuLock);
 
 	if(outError)
 		*outError = error;
-	return ok ? G_VMX_STATUS_SUCCESS : G_VMX_STATUS_FAILED;
+	return (ok && status == 0) ? G_VMX_STATUS_SUCCESS : G_VMX_STATUS_FAILED;
 }

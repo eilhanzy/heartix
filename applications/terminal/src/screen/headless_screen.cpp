@@ -43,7 +43,7 @@ bool headless_screen_t::initialize(g_user_mutex exitFlag)
 	enableCursor();
 	clean();
 
-	return ps2DriverInitialize(&inputStream);
+	return ps2DriverInitialize(&inputStream, G_TID_NONE, G_TID_NONE, G_PS2_SUBSCRIBE_KEYBOARD);
 }
 
 void headless_screen_t::clean()

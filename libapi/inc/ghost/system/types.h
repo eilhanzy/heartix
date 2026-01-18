@@ -85,8 +85,15 @@ typedef struct
 	uint8_t reserved[2];
 	uint32_t revisionId;
 	uint64_t vmxBasic;
+	uint64_t vmxPinCtls;
 	uint64_t vmxProcCtls;
 	uint64_t vmxProcCtls2;
+	uint64_t vmxExitCtls;
+	uint64_t vmxEntryCtls;
+	uint64_t vmxCr0Fixed0;
+	uint64_t vmxCr0Fixed1;
+	uint64_t vmxCr4Fixed0;
+	uint64_t vmxCr4Fixed1;
 	uint64_t vmxEptVpid;
 } __attribute__((packed)) g_vmx_caps;
 

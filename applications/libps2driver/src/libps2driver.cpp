@@ -21,7 +21,8 @@
 #include "libps2driver/ps2driver.hpp"
 #include <ghost.h>
 
-bool ps2DriverInitialize(g_ps2_event_stream* outStream, g_tid keyboardPartnerTask, g_tid mousePartnerTask)
+bool ps2DriverInitialize(g_ps2_event_stream* outStream, g_tid keyboardPartnerTask, g_tid mousePartnerTask,
+                         g_ps2_subscribe_flags subscribeFlags)
 {
 	if(!outStream)
 		return false;
@@ -29,8 +30,9 @@ bool ps2DriverInitialize(g_ps2_event_stream* outStream, g_tid keyboardPartnerTas
 	g_tid driverTid = g_task_await_by_name(G_PS2_DRIVER_NAME);
 	g_message_transaction transaction = g_get_message_tx_id();
 
-	outStream->keyboardTx = g_get_message_tx_id();
-	outStream->mouseTx = g_get_message_tx_id();
+	outStream->keyboardTx = (subscribeFlags & G_PS2_SUBSCRIBE_KEYBOARD) ? g_get_message_tx_id()
+	                                                                    : G_MESSAGE_TRANSACTION_NONE;
+	outStream->mouseTx = (subscribeFlags & G_PS2_SUBSCRIBE_MOUSE) ? g_get_message_tx_id() : G_MESSAGE_TRANSACTION_NONE;
 
 	g_ps2_initialize_request request{};
 	request.header.command = G_PS2_COMMAND_INITIALIZE;
@@ -38,6 +40,7 @@ bool ps2DriverInitialize(g_ps2_event_stream* outStream, g_tid keyboardPartnerTas
 	request.mousePartnerTask = mousePartnerTask;
 	request.keyboardTx = outStream->keyboardTx;
 	request.mouseTx = outStream->mouseTx;
+	request.subscribeFlags = subscribeFlags;
 	g_send_message_t(driverTid, &request, sizeof(request), transaction);
 
 	size_t buflen = sizeof(g_message_header) + sizeof(g_ps2_initialize_response);
