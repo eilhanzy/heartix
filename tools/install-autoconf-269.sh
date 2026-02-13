@@ -9,10 +9,66 @@ ARCHIVE_PATH="${WORK_DIR}/${ARCHIVE_NAME}"
 SOURCE_URL="https://ftp.gnu.org/gnu/autoconf/${ARCHIVE_NAME}"
 SRC_DIR="${WORK_DIR}/autoconf-2.69-src"
 
-mkdir -p "${WORK_DIR}"
+require_tool() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "error: missing required tool '$1'" >&2
+    exit 1
+  fi
+}
 
-echo "[autoconf-2.69] Downloading to ${ARCHIVE_PATH}"
-curl -L "${SOURCE_URL}" -o "${ARCHIVE_PATH}"
+pick_make() {
+  if [[ "$(uname -s)" == "Darwin" ]] && command -v gmake >/dev/null 2>&1; then
+    echo "gmake"
+  else
+    echo "make"
+  fi
+}
+
+detect_jobs() {
+  local jobs=""
+  if command -v nproc >/dev/null 2>&1; then
+    nproc
+    return
+  fi
+  if command -v sysctl >/dev/null 2>&1; then
+    jobs="$(sysctl -n hw.logicalcpu 2>/dev/null || true)"
+    if [ -z "${jobs}" ]; then
+      jobs="$(sysctl -n hw.ncpu 2>/dev/null || true)"
+    fi
+    if [ -n "${jobs}" ]; then
+      echo "${jobs}"
+      return
+    fi
+  fi
+  if command -v getconf >/dev/null 2>&1; then
+    jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
+    if [ -n "${jobs}" ]; then
+      echo "${jobs}"
+      return
+    fi
+  fi
+  echo 1
+}
+
+require_tool curl
+require_tool tar
+MAKE_BIN="$(pick_make)"
+require_tool "${MAKE_BIN}"
+
+if [ -x "${PREFIX}/bin/autoconf" ] && "${PREFIX}/bin/autoconf" --version 2>/dev/null | grep -q "GNU Autoconf) 2.69"; then
+  echo "[autoconf-2.69] Already installed at ${PREFIX}"
+  exit 0
+fi
+
+mkdir -p "${WORK_DIR}"
+mkdir -p "${PREFIX}"
+
+if [ ! -f "${ARCHIVE_PATH}" ]; then
+  echo "[autoconf-2.69] Downloading to ${ARCHIVE_PATH}"
+  curl --fail --location --retry 3 --retry-delay 2 "${SOURCE_URL}" -o "${ARCHIVE_PATH}"
+else
+  echo "[autoconf-2.69] Using cached archive ${ARCHIVE_PATH}"
+fi
 
 rm -rf "${SRC_DIR}"
 mkdir -p "${SRC_DIR}"
@@ -22,19 +78,14 @@ pushd "${SRC_DIR}" >/dev/null
 echo "[autoconf-2.69] Configuring with prefix ${PREFIX}"
 ./configure --prefix="${PREFIX}"
 echo "[autoconf-2.69] Building"
-if command -v nproc >/dev/null 2>&1; then
-  JOBS="$(nproc)"
-elif command -v sysctl >/dev/null 2>&1; then
-  JOBS="$(sysctl -n hw.ncpu 2>/dev/null || echo 1)"
-else
-  JOBS=1
-fi
+JOBS="$(detect_jobs)"
 if ! [[ "${JOBS}" =~ ^[0-9]+$ ]] || [ "${JOBS}" -lt 1 ]; then
   JOBS=1
 fi
-make -j"${JOBS}"
+echo "[autoconf-2.69] Using ${MAKE_BIN} with ${JOBS} job(s)"
+"${MAKE_BIN}" -j"${JOBS}"
 echo "[autoconf-2.69] Installing"
-make install
+"${MAKE_BIN}" install
 popd >/dev/null
 
 cat <<EOF

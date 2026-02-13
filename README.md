@@ -24,15 +24,15 @@ system libraries for host compilation.
 ```bash
 sudo pacman -S --needed \
   base-devel cmake nasm xorriso curl git pkgconf \
-  autoconf automake bison flex texinfo gmp mpfr libmpc
+  autoconf automake bison flex texinfo gmp mpfr libmpc isl
 ```
 
 ### macOS prerequisites
 ```bash
 xcode-select --install
 brew install \
-  cmake nasm xorriso curl pkg-config \
-  autoconf automake bison flex texinfo gmp mpfr libmpc
+  cmake gcc nasm xorriso curl pkg-config \
+  autoconf automake bison flex texinfo gmp mpfr libmpc isl
 ```
 
 ### 1) Bootstrap the cross toolchain
@@ -45,8 +45,18 @@ cmake -S cmake/ghost-toolchain-bootstrap -B build-ghost-toolchain \
 cmake --build build-ghost-toolchain --target ghost-toolchain
 ```
 
-### 2) Configure and build Heartix
+### 2) Ensure the toolchain is visible
 ```bash
+export PATH="$PWD/build-ghost/toolchain/bin:$PATH"
+x86_64-ghost-gcc --version
+```
+
+If `x86_64-ghost-gcc` is not found, bootstrap the toolchain again (step 1).
+
+### 3) Configure and build Heartix
+```bash
+rm -rf build-ghost/CMakeCache.txt build-ghost/CMakeFiles
+
 cmake -S . -B build-ghost \
   -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/ghost-x86_64.cmake \
   -DTARGET_TRIPLE=x86_64-ghost \
@@ -57,6 +67,9 @@ cmake -S . -B build-ghost \
 
 cmake --build build-ghost --target pack
 ```
+
+macOS note: the build uses Limine's `v9.2.0-binary` release. If a native `limine` host
+installer is not available, BIOS post-install is skipped and UEFI boot is recommended.
 
 Output ISO:
 ```text

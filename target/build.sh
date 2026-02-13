@@ -6,6 +6,19 @@ ISO_ROOT="${ROOT}/iso"
 LIMINE_VERSION="${LIMINE_VERSION:-9.2.0}"
 LIMINE_DIR="${ROOT}/limine-${LIMINE_VERSION}"
 
+resolve_limine_artifact() {
+    local name="$1"
+    if [[ -f "${LIMINE_DIR}/bin/${name}" ]]; then
+        printf "%s\n" "${LIMINE_DIR}/bin/${name}"
+        return 0
+    fi
+    if [[ -f "${LIMINE_DIR}/${name}" ]]; then
+        printf "%s\n" "${LIMINE_DIR}/${name}"
+        return 0
+    fi
+    return 1
+}
+
 if [[ $# -lt 1 ]]; then
     echo "usage: $0 pack"
     exit 1
@@ -43,11 +56,15 @@ case "$1" in
         "${TOOLCHAIN_BASE}/bin/ramdisk-writer" "${SYSROOT}" "${ISO_ROOT}/boot/ramdisk"
 
         echo "copying kernel and Limine artifacts"
+        LIMINE_BIOS_SYS="$(resolve_limine_artifact limine-bios.sys)" || { echo "error: limine-bios.sys not found in ${LIMINE_DIR}" >&2; exit 1; }
+        LIMINE_BIOS_CD="$(resolve_limine_artifact limine-bios-cd.bin)" || { echo "error: limine-bios-cd.bin not found in ${LIMINE_DIR}" >&2; exit 1; }
+        LIMINE_UEFI_CD="$(resolve_limine_artifact limine-uefi-cd.bin)" || { echo "error: limine-uefi-cd.bin not found in ${LIMINE_DIR}" >&2; exit 1; }
+
         cp "${KERNEL_BIN}" "${ISO_ROOT}/boot/kernel"
-        cp "${LIMINE_DIR}/bin/limine-bios.sys" "${ISO_ROOT}/limine-bios.sys"
-        cp "${LIMINE_DIR}/bin/limine-bios.sys" "${ISO_ROOT}/boot/limine/limine-bios.sys"
-        cp "${LIMINE_DIR}/bin/limine-bios-cd.bin" "${ISO_ROOT}/boot/limine/limine-bios-cd.bin"
-        cp "${LIMINE_DIR}/bin/limine-uefi-cd.bin" "${ISO_ROOT}/boot/limine/limine-uefi-cd.bin"
+        cp "${LIMINE_BIOS_SYS}" "${ISO_ROOT}/limine-bios.sys"
+        cp "${LIMINE_BIOS_SYS}" "${ISO_ROOT}/boot/limine/limine-bios.sys"
+        cp "${LIMINE_BIOS_CD}" "${ISO_ROOT}/boot/limine/limine-bios-cd.bin"
+        cp "${LIMINE_UEFI_CD}" "${ISO_ROOT}/boot/limine/limine-uefi-cd.bin"
 
         cat <<EOF > "${ISO_ROOT}/limine.conf"
 timeout: 5
@@ -75,8 +92,20 @@ EOF
                 "${ISO_ROOT}" -o "${ROOT}/ghost.iso"
         )
 
-        echo "running limine BIOS installer"
-        "${LIMINE_DIR}/bin/limine" bios-install "${ROOT}/ghost.iso"
+        LIMINE_INSTALLER=""
+        if [[ -x "${LIMINE_DIR}/bin/limine" ]]; then
+            LIMINE_INSTALLER="${LIMINE_DIR}/bin/limine"
+        elif [[ -x "${LIMINE_DIR}/limine" ]]; then
+            LIMINE_INSTALLER="${LIMINE_DIR}/limine"
+        fi
+
+        if [[ -n "${LIMINE_INSTALLER}" ]]; then
+            echo "running limine BIOS installer"
+            "${LIMINE_INSTALLER}" bios-install "${ROOT}/ghost.iso"
+        else
+            echo "warning: limine host installer not found; skipping BIOS install step"
+            echo "warning: UEFI boot files were copied. BIOS boot may not work on all VMs."
+        fi
         ;;
     *)
         echo "usage: $0 pack"

@@ -20,7 +20,7 @@ endif()
 find_program(GHOST_PACMAN_EXECUTABLE pacman)
 
 function(ghost_root_tool_install_hint out_var tool)
-  if(APPLE)
+  if(CMAKE_HOST_APPLE)
     set(_hint "brew install ${tool}")
   elseif(GHOST_PACMAN_EXECUTABLE)
     set(_hint "sudo pacman -S ${tool}")
@@ -184,4 +184,16 @@ endif()
 
 if(TARGET applications-libs)
   add_dependencies(applications-libs sysroot-base)
+endif()
+
+# applications/CMakeLists.txt is added before the optional `ports` target is
+# declared above, so `if(TARGET ports)` checks there can miss it. Wire runtime
+# port dependencies here after all targets exist to avoid parallel build races.
+if(TARGET ports)
+  if(TARGET fenster)
+    add_dependencies(fenster ports)
+  endif()
+  if(TARGET applications-libs)
+    add_dependencies(applications-libs ports)
+  endif()
 endif()

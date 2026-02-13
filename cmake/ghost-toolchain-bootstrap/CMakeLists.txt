@@ -40,7 +40,10 @@ function(ghost_bootstrap_install_hint out_var package_name)
 endfunction()
 
 function(ghost_bootstrap_require_program out_var binary package_name reason)
-  find_program(_binary_path NAMES ${binary})
+  string(REGEX REPLACE "[^A-Za-z0-9_]" "_" _binary_key "${binary}")
+  set(_binary_cache_var "_ghost_bootstrap_bin_${_binary_key}")
+  find_program(${_binary_cache_var} NAMES ${binary})
+  set(_binary_path "${${_binary_cache_var}}")
   if(NOT _binary_path)
     ghost_bootstrap_install_hint(_hint "${package_name}")
     message(FATAL_ERROR "${binary} is required to ${reason}.\nHint: ${_hint}")
@@ -70,9 +73,35 @@ ghost_bootstrap_require_program(MAKEINFO_EXECUTABLE makeinfo texinfo "build GNU 
 ghost_bootstrap_require_program(PKGCONFIG_EXECUTABLE pkg-config pkg-config "resolve host package metadata")
 ghost_bootstrap_require_program(NASM_EXECUTABLE nasm nasm "assemble project components")
 
+if(APPLE)
+  execute_process(
+    COMMAND ${GCC_EXECUTABLE} --version
+    OUTPUT_VARIABLE _gcc_version_output
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  set(_macos_has_gnu_gcc FALSE)
+  set(_macos_gnu_cc "")
+  set(_macos_gnu_cxx "")
+  foreach(_major RANGE 30 7 -1)
+    find_program(_macos_gcc_candidate NAMES gcc-${_major})
+    find_program(_macos_gxx_candidate NAMES g++-${_major})
+    if(_macos_gcc_candidate AND _macos_gxx_candidate)
+      set(_macos_has_gnu_gcc TRUE)
+      set(_macos_gnu_cc ${_macos_gcc_candidate})
+      set(_macos_gnu_cxx ${_macos_gxx_candidate})
+      break()
+    endif()
+  endforeach()
+  if(_gcc_version_output MATCHES "clang" AND NOT _macos_has_gnu_gcc)
+    message(FATAL_ERROR "macOS host detected with clang masquerading as gcc/g++. GCC cross-toolchain bootstrap requires GNU gcc/g++.\nHint: brew install gcc")
+  endif()
+endif()
+
 ghost_bootstrap_require_dev_library(GMP gmp.h gmp gmp)
 ghost_bootstrap_require_dev_library(MPFR mpfr.h mpfr mpfr)
 ghost_bootstrap_require_dev_library(MPC mpc.h mpc libmpc)
+ghost_bootstrap_require_dev_library(ISL isl/ctx.h isl isl)
 
 # Paths
 set(REPO_ROOT ${CMAKE_SOURCE_DIR}/../..)
@@ -105,6 +134,8 @@ add_custom_target(ghost-toolchain
           "TARGET=${TARGET_TRIPLE}"
           "TOOLCHAIN_BASE=${TOOLCHAIN_BASE}"
           "SYSROOT=${SYSROOT}"
+          "HOST_CC=${_macos_gnu_cc}"
+          "HOST_CXX=${_macos_gnu_cxx}"
           "PATH=${_toolchain_path}"
           bash ${TOOLCHAIN_SH}
   WORKING_DIRECTORY ${REPO_ROOT}

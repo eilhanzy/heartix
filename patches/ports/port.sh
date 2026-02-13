@@ -194,9 +194,12 @@ fix_libtool_paths() {
 	local esc_sysroot
 	esc_sysroot=$(printf '%s\n' "$SYSROOT" | sed 's/[.[\*^$\/]/\\&/g')
 	while IFS= read -r -d '' la; do
+		if [ -L "$la" ]; then
+			continue
+		fi
 		sedi "$la" "s|^libdir='/system/lib'|libdir='$libdir'|"
-		sedi "$la" -E "s|(^|[[:space:]])/system/lib/|\\1$libdir/|g"
-		sedi "$la" -E "s|(^|[[:space:]])-L/system/lib|\\1-L$libdir|g"
+		sedi "$la" -E "s#(^|[[:space:]])/system/lib/#\\1$libdir/#g"
+		sedi "$la" -E "s#(^|[[:space:]])-L/system/lib#\\1-L$libdir#g"
 		while grep -q "$SYSROOT/$SYSROOT" "$la"; do
 			sedi "$la" "s|${esc_sysroot}/${esc_sysroot}|$SYSROOT|g"
 		done

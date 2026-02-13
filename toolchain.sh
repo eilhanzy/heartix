@@ -14,7 +14,7 @@ fi
 # The following pre-requirements must be installed on your system:
 #
 #    gcc g++ nasm make texinfo flex bison
-#    libmpfr-dev libgmp-dev libmpc-dev autoconf pkg-config
+#    libmpfr-dev libgmp-dev libmpc-dev libisl-dev autoconf pkg-config
 #    grub-pc-bin xorriso
 #
 # The build will fail if any of these requirements are not present.
@@ -38,6 +38,123 @@ BINUTILS_ARCHIVE=https://ftp.gnu.org/gnu/binutils/binutils-2.39.tar.gz
 BINUTILS_PATCH=patches/toolchain/binutils-2.39-ghost-1.0.patch
 BINUTILS_UNPACKED=binutils-2.39
 
+HOST_UNAME=$(uname -s)
+MACOS_NEEDS_GNU_GCC=0
+MACOS_MISSING_GCC_LIB_DEPS=""
+
+apply_macos_zlib_fdopen_compat() {
+	local zutil_file="$1"
+	if [ "$HOST_UNAME" != "Darwin" ]; then
+		return
+	fi
+	if [ ! -f "$zutil_file" ]; then
+		return
+	fi
+	echo "Applying macOS compatibility patch to $(dirname "$zutil_file")"
+	perl -0pi -e 's/#if defined\(MACOS\) \|\| defined\(TARGET_OS_MAC\)/#if defined(MACOS) || (defined(TARGET_OS_MAC) \&\& !defined(__APPLE__))/g' "$zutil_file"
+}
+
+apply_macos_binutils_compat() {
+	apply_macos_zlib_fdopen_compat "temp/$BINUTILS_UNPACKED/zlib/zutil.h"
+}
+
+apply_macos_gcc_compat() {
+	apply_macos_zlib_fdopen_compat "temp/$GCC_UNPACKED/zlib/zutil.h"
+}
+
+setup_macos_gcc_deps() {
+	if [ "$HOST_UNAME" != "Darwin" ]; then
+		return
+	fi
+	if ! command -v brew >/dev/null 2>&1; then
+		return
+	fi
+
+	local brew_prefix
+	local gmp_prefix
+	local mpfr_prefix
+	local mpc_prefix
+	local isl_prefix
+	local missing_libs=""
+	brew_prefix=$(brew --prefix)
+	gmp_prefix="$brew_prefix/opt/gmp"
+	mpfr_prefix="$brew_prefix/opt/mpfr"
+	mpc_prefix="$brew_prefix/opt/libmpc"
+	isl_prefix="$brew_prefix/opt/isl"
+
+	if [ ! -d "$gmp_prefix" ]; then
+		missing_libs="$missing_libs gmp"
+	fi
+	if [ ! -d "$mpfr_prefix" ]; then
+		missing_libs="$missing_libs mpfr"
+	fi
+	if [ ! -d "$mpc_prefix" ]; then
+		missing_libs="$missing_libs libmpc"
+	fi
+	if [ ! -d "$isl_prefix" ]; then
+		missing_libs="$missing_libs isl"
+	fi
+	if [ -n "$missing_libs" ]; then
+		MACOS_MISSING_GCC_LIB_DEPS="$missing_libs"
+		return
+	fi
+
+	echo "Using Homebrew GMP/MPFR/MPC/ISL for GCC build"
+	BUILD_GCC_ADDITIONAL_FLAGS="$BUILD_GCC_ADDITIONAL_FLAGS --with-gmp=$gmp_prefix --with-mpfr=$mpfr_prefix --with-mpc=$mpc_prefix --with-isl=$isl_prefix"
+}
+
+setup_macos_host_compilers() {
+	if [ "$HOST_UNAME" != "Darwin" ]; then
+		return
+	fi
+	local major
+	for ((major=30; major>=7; major--)); do
+		if command -v "gcc-$major" >/dev/null 2>&1 && command -v "g++-$major" >/dev/null 2>&1; then
+			HOST_CC="gcc-$major"
+			HOST_CXX="g++-$major"
+			echo "Using Homebrew GNU toolchain for host build: $HOST_CC / $HOST_CXX"
+			return
+		fi
+	done
+	if "$HOST_CXX" --version 2>/dev/null | grep -qi clang; then
+		echo "warning: GNU GCC not found on macOS. Current host C++ compiler is clang ($HOST_CXX)." >&2
+		echo "warning: Install Homebrew gcc (brew install gcc) for reliable cross-toolchain builds." >&2
+		MACOS_NEEDS_GNU_GCC=1
+	fi
+}
+
+failOnErrorWithLog() {
+	local status=$?
+	local log_file="${1:-$BUILD_LOG_FILE}"
+	if [ "$status" = "0" ]; then
+		return
+	fi
+	printf "\e[31;1mtarget failed\e[0m\n\n"
+	if [ -f "$log_file" ]; then
+		echo "Build log: $(pwd)/$log_file"
+		echo "Last 60 lines:"
+		tail -n 60 "$log_file"
+		echo ""
+	fi
+	exit $status
+}
+
+applyPatchIfNeeded() {
+	local source_dir="$1"
+	local patch_file="$2"
+	local marker_file="$3"
+	local marker_pattern="$4"
+	local log_file="${5:-temp/patching.log}"
+
+	if [ -f "$marker_file" ] && grep -Fq "$marker_pattern" "$marker_file"; then
+		echo "Patch already applied for $source_dir"
+		return
+	fi
+
+	patch --batch --forward -d "$source_dir" -p 1 < "$patch_file" >>"$log_file" 2>&1
+	failOnErrorWithLog "$log_file"
+}
+
 
 # Add toolchain bin folder to PATH
 PATH=$PATH:$TOOLCHAIN_BASE/bin
@@ -47,7 +164,13 @@ PATH=$PATH:$TOOLCHAIN_BASE/bin
 with REQUIRED_AUTOCONF "autoconf (GNU Autoconf) 2.69"
 with AUTOMAKE	automake
 with AUTOCONF	autoconf
+with HOST_CC	gcc
 with HOST_CXX	g++
+with BUILD_GCC_ADDITIONAL_FLAGS ""
+with BUILD_LOG_FILE "ghost-build.log"
+
+setup_macos_gcc_deps
+setup_macos_host_compilers
 
 
 # Parse parameters
@@ -99,6 +222,17 @@ for var in "$@"; do
 	fi
 done
 
+if [ "$HOST_UNAME" = "Darwin" ] && [ "$MACOS_NEEDS_GNU_GCC" = "1" ] && [ "$STEP_BUILD_GCC" = "1" ]; then
+	echo "error: macOS detected with Apple clang as host compiler. GCC cross-toolchain bootstrap requires GNU gcc/g++." >&2
+	echo "hint: brew install gcc" >&2
+	exit 1
+fi
+if [ "$HOST_UNAME" = "Darwin" ] && [ -n "$MACOS_MISSING_GCC_LIB_DEPS" ] && [ "$STEP_BUILD_GCC" = "1" ]; then
+	echo "error: missing Homebrew GCC build dependencies:$MACOS_MISSING_GCC_LIB_DEPS" >&2
+	echo "hint: brew install$MACOS_MISSING_GCC_LIB_DEPS" >&2
+	exit 1
+fi
+
 pushd() {
     command pushd "$@" > /dev/null
 }
@@ -112,6 +246,8 @@ echo "Checking tools"
 requireTool patch
 requireTool curl
 requireTool $AUTOCONF
+requireTool $HOST_CC
+requireTool $HOST_CXX
 
 
 
@@ -154,6 +290,7 @@ fi
 if [ $STEP_UNPACK == 1 ]; then
 
 	echo "Unpacking archives"
+	rm -rf "temp/$GCC_UNPACKED" "temp/$BINUTILS_UNPACKED"
 	tar -xf temp/gcc.tar.gz -C temp
 	failOnError
 	tar -xf temp/binutils.tar.gz -C temp
@@ -168,25 +305,30 @@ fi
 if [ $STEP_PATCH == 1 ]; then
 
 	echo "Patching GCC"
-	patch -d temp/$GCC_UNPACKED -p 1 < $GCC_PATCH				>>temp/patching.log 2>&1
+	applyPatchIfNeeded "temp/$GCC_UNPACKED" "$GCC_PATCH" "temp/$GCC_UNPACKED/gcc/config/ghost.h" "TARGET_GHOST 1" "temp/patching.log"
 	pushd temp/$GCC_UNPACKED/libstdc++-v3
 	echo "Updating autoconf in libstdc++-v3"
 	$AUTOCONF
+	failOnError
 	popd
 	
 	echo "Patching binutils"
-	patch -d temp/$BINUTILS_UNPACKED -p 1 < $BINUTILS_PATCH		>>temp/patching.log 2>&1
+	applyPatchIfNeeded "temp/$BINUTILS_UNPACKED" "$BINUTILS_PATCH" "temp/$BINUTILS_UNPACKED/ld/configure.tgt" "*-*-ghost*)" "temp/patching.log"
 	
 else
 	echo "Skipping patching"
 fi
 
+apply_macos_binutils_compat
+apply_macos_gcc_compat
+
 
 # Build tools
-echo "Building 'changes' tool"
+	echo "Building 'changes' tool"
 pushd tools/changes
 
-	CC=$HOST_CXX $SH build.sh all		>>ghost-build.log 2>&1
+	CC=$HOST_CXX LD=$HOST_CXX $SH build.sh all		>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 popd
 
@@ -194,7 +336,8 @@ popd
 echo "Building 'ramdisk-writer' tool"
 pushd tools/ramdisk-writer
 
-	CC=$HOST_CXX $SH build.sh all		>>ghost-build.log 2>&1
+	CC=$HOST_CXX LD=$HOST_CXX $SH build.sh all		>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 popd
 
@@ -202,7 +345,8 @@ popd
 echo "Installing 'pkg-config' wrapper"
 pushd tools/pkg-config
 
-	$SH build.sh						>>ghost-build.log 2>&1
+	$SH build.sh						>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 popd
 
@@ -211,13 +355,15 @@ popd
 echo "Installing libc and libapi headers"
 pushd libc
 
-	$SH build.sh install-headers	>>ghost-build.log 2>&1
+	$SH build.sh install-headers	>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 popd
 
 pushd libapi
 
-	$SH build.sh install-headers	>>ghost-build.log 2>&1
+	$SH build.sh install-headers	>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 popd
 
@@ -226,20 +372,21 @@ popd
 if [ $STEP_BUILD_BINUTILS == 1 ]; then
 
 	echo "Building binutils"
+	rm -rf temp/build-binutils
 	mkdir -p temp/build-binutils
 	pushd temp/build-binutils
 
 	echo "    Configuring"
-	../$BINUTILS_UNPACKED/configure --target=$TARGET --prefix=$TOOLCHAIN_BASE --disable-nls --enable-shared --disable-werror --with-sysroot=$SYSROOT >>ghost-build.log 2>&1
-	failOnError
+	CC=$HOST_CC CXX=$HOST_CXX ../$BINUTILS_UNPACKED/configure --target=$TARGET --prefix=$TOOLCHAIN_BASE --disable-nls --enable-shared --disable-werror --with-sysroot=$SYSROOT >>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 	echo "    Building"
-	make MAKEINFO=true all -j8						>>ghost-build.log 2>&1
-	failOnError
+	make MAKEINFO=true all -j8						>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 	echo "    Installing"
-	make MAKEINFO=true install						>>ghost-build.log 2>&1
-	failOnError
+	make MAKEINFO=true install						>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 	popd
 
@@ -252,20 +399,21 @@ fi
 if [ $STEP_BUILD_GCC == 1 ]; then
 
 	echo "Building gcc"
+	rm -rf temp/build-gcc
 	mkdir -p temp/build-gcc
 	pushd temp/build-gcc
 	
 	echo "    Configuration"
-	../$GCC_UNPACKED/configure --target=$TARGET --prefix=$TOOLCHAIN_BASE --disable-nls --enable-languages=c,c++ --enable-shared --with-sysroot=$SYSROOT $BUILD_GCC_ADDITIONAL_FLAGS >>ghost-build.log 2>&1
-	failOnError
+	CC=$HOST_CC CXX=$HOST_CXX ../$GCC_UNPACKED/configure --target=$TARGET --prefix=$TOOLCHAIN_BASE --disable-nls --enable-languages=c,c++ --enable-shared --with-sysroot=$SYSROOT $BUILD_GCC_ADDITIONAL_FLAGS >>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 	echo "    Building core"
-	make all-gcc -j8					>>ghost-build.log 2>&1
-	failOnError
+	make all-gcc -j8					>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 	echo "    Installing core"
-	make install-gcc					>>ghost-build.log 2>&1
-	failOnError
+	make install-gcc					>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 	popd
 else
@@ -277,8 +425,8 @@ fi
 echo "Building libc static"
 
 	pushd libc
-	$SH build.sh clean static					>>ghost-build.log 2>&1
-	failOnError
+	$SH build.sh clean static					>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 popd
 
@@ -287,8 +435,8 @@ popd
 echo "Building libapi static"
 
 	pushd libapi
-	$SH build.sh clean static					>>ghost-build.log 2>&1
-	failOnError
+	$SH build.sh clean static					>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 popd
 
@@ -298,16 +446,16 @@ echo "Building target GCC libraries"
 pushd temp/build-gcc
 
 	echo "    Building target libgcc"
-	make all-target-libgcc -j8				>>ghost-build.log 2>&1
-	failOnError
+	make all-target-libgcc -j8				>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 	echo "    Installing target libgcc"
-	make install-target-libgcc				>>ghost-build.log 2>&1
-	failOnError
+	make install-target-libgcc				>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 	echo "    Copying artifacts to system/lib"
 	cp "$TOOLCHAIN_BASE/$TARGET/lib/libgcc_s.so.1" "$SYSROOT/system/lib/libgcc_s.so.1"
-	failOnError
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 popd
 
@@ -316,8 +464,8 @@ popd
 echo "Building libc shared"
 
 	pushd libc
-	$SH build.sh shared					>>ghost-build.log 2>&1
-	failOnError
+	$SH build.sh shared					>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 popd
 
@@ -326,8 +474,8 @@ popd
 echo "Building libapi shared"
 
 	pushd libapi
-	$SH build.sh shared					>>ghost-build.log 2>&1
-	failOnError
+	$SH build.sh shared					>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 popd
 
@@ -336,12 +484,12 @@ popd
 pushd temp/build-gcc
 
 	echo "    Building libstdc++-v3"
-	make all-target-libstdc++-v3 -j8		>>ghost-build.log 2>&1
-	failOnError
+	make all-target-libstdc++-v3 -j8		>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 	echo "    Installing libstdc++-v3"
-	make install-target-libstdc++-v3		>>ghost-build.log 2>&1
-	failOnError
+	make install-target-libstdc++-v3		>>"$BUILD_LOG_FILE" 2>&1
+	failOnErrorWithLog "$BUILD_LOG_FILE"
 
 popd
 

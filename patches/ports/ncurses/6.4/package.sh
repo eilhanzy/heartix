@@ -12,9 +12,10 @@ if [ -z "$PKG_CONFIG" ]; then
 fi
 	CFLAGS="-DCAIRO_NO_MUTEX=1" ../$UNPACKED_DIR/configure --host=$TARGET --prefix=$PREFIX \
 		--enable-xlib=no --enable-shared=yes --enable-static=no \
+		--without-progs --without-tack --without-manpages \
 		--without-tests \
 		--with-default-terminfo-dir=$PREFIX/share/terminfo \
 		--with-terminfo-dirs=$PREFIX/share/terminfo
 	make -j8
-	make DESTDIR=$SYSROOT install
+	make DESTDIR=$SYSROOT install.libs install.includes
 }

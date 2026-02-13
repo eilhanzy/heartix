@@ -2,9 +2,18 @@
 
 set -euo pipefail
 
+download_limine_archive() {
+    mkdir -p "@LIMINE_SOURCE_DIR@"
+    curl -k -L "@LIMINE_SOURCE@" -o "@LIMINE_TAR@"
+    tar -xzf "@LIMINE_TAR@" -C "@LIMINE_SOURCE_DIR@"
+}
+
 ensure_limine_built() {
     (
         cd "@LIMINE_DIR@"
+        OBJCOPY_FOR_TARGET="@LIMINE_OBJCOPY_EXECUTABLE@" \
+        OBJDUMP_FOR_TARGET="@LIMINE_OBJDUMP_EXECUTABLE@" \
+        READELF_FOR_TARGET="@LIMINE_READELF_EXECUTABLE@" \
         ./configure --enable-bios-cd --enable-uefi-cd
         make
     )
@@ -13,15 +22,22 @@ ensure_limine_built() {
 if [ ! -f "@LIMINE_DIR@/bin/limine-bios.sys" ] || \
    [ ! -f "@LIMINE_DIR@/bin/limine-bios-cd.bin" ] || \
    [ ! -f "@LIMINE_DIR@/bin/limine-uefi-cd.bin" ]; then
-    if [ ! -d "@LIMINE_DIR@" ]; then
-        echo "Downloading limine..."
-        mkdir -p "@LIMINE_SOURCE_DIR@"
-        curl -k -L "@LIMINE_SOURCE@" -o "@LIMINE_TAR@"
-        tar -xzf "@LIMINE_TAR@" -C "@LIMINE_SOURCE_DIR@"
+    if [ "@LIMINE_USE_BINARY_RELEASE@" = "ON" ]; then
+        echo "Downloading Limine binary release..."
+        rm -rf "@LIMINE_DIR@" "@LIMINE_SOURCE_DIR@/@LIMINE_ARCHIVE_ROOT@"
+        download_limine_archive
+        if [ "@LIMINE_ARCHIVE_ROOT@" != "$(basename "@LIMINE_DIR@")" ]; then
+            mv "@LIMINE_SOURCE_DIR@/@LIMINE_ARCHIVE_ROOT@" "@LIMINE_DIR@"
+        fi
     else
-        echo "Limine sources already present, rebuilding…"
+        if [ ! -d "@LIMINE_DIR@" ]; then
+            echo "Downloading limine..."
+            download_limine_archive
+        else
+            echo "Limine sources already present, rebuilding…"
+        fi
+        ensure_limine_built
     fi
-    ensure_limine_built
 else
     echo "Limine already prepared at @LIMINE_DIR@"
 fi
