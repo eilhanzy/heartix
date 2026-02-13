@@ -22,7 +22,17 @@ pushd "${SRC_DIR}" >/dev/null
 echo "[autoconf-2.69] Configuring with prefix ${PREFIX}"
 ./configure --prefix="${PREFIX}"
 echo "[autoconf-2.69] Building"
-make -j"$(nproc)"
+if command -v nproc >/dev/null 2>&1; then
+  JOBS="$(nproc)"
+elif command -v sysctl >/dev/null 2>&1; then
+  JOBS="$(sysctl -n hw.ncpu 2>/dev/null || echo 1)"
+else
+  JOBS=1
+fi
+if ! [[ "${JOBS}" =~ ^[0-9]+$ ]] || [ "${JOBS}" -lt 1 ]; then
+  JOBS=1
+fi
+make -j"${JOBS}"
 echo "[autoconf-2.69] Installing"
 make install
 popd >/dev/null

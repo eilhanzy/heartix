@@ -14,6 +14,70 @@ See `documentation/` for design notes and build instructions inherited from Ghos
 
 Outputs are placed under `target/` (bootable ISO, kernel, sysroot artifacts).
 
+## Build (CMake)
+Heartix is built with a cross toolchain (`x86_64-ghost`) and a CMake-based flow.
+Third-party libraries (zlib, pixman, libpng, freetype, cairo, etc.) are built
+into the Ghost sysroot during the build process; you do not install them as
+system libraries for host compilation.
+
+### Arch Linux prerequisites
+```bash
+sudo pacman -S --needed \
+  base-devel cmake nasm xorriso curl git pkgconf \
+  autoconf automake bison flex texinfo gmp mpfr libmpc
+```
+
+### macOS prerequisites
+```bash
+xcode-select --install
+brew install \
+  cmake nasm xorriso curl pkg-config \
+  autoconf automake bison flex texinfo gmp mpfr libmpc
+```
+
+### 1) Bootstrap the cross toolchain
+```bash
+cmake -S cmake/ghost-toolchain-bootstrap -B build-ghost-toolchain \
+  -DTARGET_TRIPLE=x86_64-ghost \
+  -DTOOLCHAIN_BASE=$PWD/build-ghost/toolchain \
+  -DSYSROOT=$PWD/build-ghost/sysroot
+
+cmake --build build-ghost-toolchain --target ghost-toolchain
+```
+
+### 2) Configure and build Heartix
+```bash
+cmake -S . -B build-ghost \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/ghost-x86_64.cmake \
+  -DTARGET_TRIPLE=x86_64-ghost \
+  -DTOOLCHAIN_BASE=$PWD/build-ghost/toolchain \
+  -DSYSROOT=$PWD/build-ghost/sysroot \
+  -DGHOST_BUILD_PORTS=ON \
+  -DGHOST_ENABLE_PACK=ON
+
+cmake --build build-ghost --target pack
+```
+
+Output ISO:
+```text
+target/ghost.iso
+```
+
+### Build without ISO (no `xorriso` requirement)
+If you only want binaries/sysroot artifacts:
+
+```bash
+cmake -S . -B build-ghost \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/ghost-x86_64.cmake \
+  -DTARGET_TRIPLE=x86_64-ghost \
+  -DTOOLCHAIN_BASE=$PWD/build-ghost/toolchain \
+  -DSYSROOT=$PWD/build-ghost/sysroot \
+  -DGHOST_BUILD_PORTS=ON \
+  -DGHOST_ENABLE_PACK=OFF
+
+cmake --build build-ghost
+```
+
 ## Running
 Test in a VM (VirtualBox/VMware/QEMU) with at least 512 MB RAM. Prefer VMSVGA/VMware SVGA for graphics.
 

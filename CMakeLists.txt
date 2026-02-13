@@ -13,6 +13,22 @@ option(GHOST_ENABLE_PACK  "Enable pack target to produce ISO via scripts" ON)
 if(GHOST_ENABLE_PACK AND NOT GHOST_BUILD_PORTS)
   set(GHOST_BUILD_PORTS ON CACHE BOOL "Build ports (zlib, pixman, libpng, freetype, cairo)" FORCE)
 endif()
+if(GHOST_ENABLE_PACK AND NOT GHOST_BUILD_KERNEL)
+  message(FATAL_ERROR "GHOST_ENABLE_PACK requires GHOST_BUILD_KERNEL=ON")
+endif()
+
+find_program(GHOST_PACMAN_EXECUTABLE pacman)
+
+function(ghost_root_tool_install_hint out_var tool)
+  if(APPLE)
+    set(_hint "brew install ${tool}")
+  elseif(GHOST_PACMAN_EXECUTABLE)
+    set(_hint "sudo pacman -S ${tool}")
+  else()
+    set(_hint "install '${tool}' with your package manager")
+  endif()
+  set(${out_var} "${_hint}" PARENT_SCOPE)
+endfunction()
 
 # Defaults similar to ghost.sh
 set(TARGET_TRIPLE "${TARGET_TRIPLE}" CACHE STRING "Target triple (e.g. x86_64-ghost)")
@@ -109,11 +125,18 @@ if(GHOST_BUILD_PORTS)
   endif()
 endif()
 
-# Target utilities (limine)
-add_subdirectory(target)
+# Target utilities (limine) are needed for kernel and ISO pack flows.
+if(GHOST_BUILD_KERNEL OR GHOST_ENABLE_PACK)
+  add_subdirectory(target)
+endif()
 
 # Pack/ISO wrapper
 if(GHOST_ENABLE_PACK)
+  find_program(XORRISO_EXECUTABLE xorriso)
+  if(NOT XORRISO_EXECUTABLE)
+    ghost_root_tool_install_hint(_xorriso_hint xorriso)
+    message(FATAL_ERROR "xorriso is required to build ISO images.\nHint: ${_xorriso_hint}\nTip: configure with -DGHOST_ENABLE_PACK=OFF if you only want binaries/sysroot.")
+  endif()
   add_custom_target(pack
     COMMAND ${CMAKE_COMMAND} -E env SH=bash SYSROOT=${SYSROOT} TOOLCHAIN_BASE=${TOOLCHAIN_BASE} KERNEL_BIN=$<TARGET_FILE:kernel> bash ${CMAKE_SOURCE_DIR}/target/build.sh pack
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/target
