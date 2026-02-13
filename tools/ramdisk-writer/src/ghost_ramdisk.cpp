@@ -260,34 +260,29 @@ void ghost_ramdisk::writeRecursive(const char* basePath, const char* path, const
 		{
 			while((entry = readdir(directory)) != NULL)
 			{
-				char entryPath[260];
-
-				std::stringstream str;
-				str << path;
-				str << '/';
-				str << entry->d_name;
-
-				str >> entryPath;
+				std::string entryPath(path);
+				entryPath += "/";
+				entryPath += entry->d_name;
 
 				struct stat s;
-				int32_t statr = stat(entryPath, &s);
+				int32_t statr = stat(entryPath.c_str(), &s);
 				if(statr == 0)
 				{
 
 					if(s.st_mode & S_IFREG)
 					{
-						writeRecursive(basePath, entryPath, entry->d_name, s.st_size, entryId, true);
+						writeRecursive(basePath, entryPath.c_str(), entry->d_name, s.st_size, entryId, true);
 
 					} else if(s.st_mode & S_IFDIR)
 					{
 						if(!(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0))
 						{
-							writeRecursive(basePath, entryPath, entry->d_name, 0, entryId, false);
+							writeRecursive(basePath, entryPath.c_str(), entry->d_name, 0, entryId, false);
 						}
 					}
 				} else
 				{
-					std::cerr << "error: could not read directory: '" << path << "'";
+					std::cerr << "error: could not read directory: '" << path << "'" << std::endl;
 					break;
 				}
 			}
@@ -295,12 +290,12 @@ void ghost_ramdisk::writeRecursive(const char* basePath, const char* path, const
 			closedir(directory);
 		} else
 		{
-			std::cerr << "error: could not open directory: '" << path << "'";
+			std::cerr << "error: could not open directory: '" << path << "'" << std::endl;
 		}
 	}
 
 	// entry done
 	out.flush();
 
-	delete buffer;
+	delete[] buffer;
 }
