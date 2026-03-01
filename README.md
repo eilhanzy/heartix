@@ -4,6 +4,8 @@ Heartix is a heavily modified fork of the Ghost microkernel project. It keeps th
 original Ghost architecture and copyright notices by Max Schlüssel, but rebrands
 as **Heartix** and tracks its own versioning starting at **0.1.0**.
 
+# This repository will now be kept as an archive, and end-of-life activities will begin. See issue #4 for details.
+
 ## Status
 * Kernel: Heartix 0.1.0 (heavy-modified Ghost)
 * License: GPLv3 (original Ghost licensing retained)
