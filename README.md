@@ -14,7 +14,7 @@ Heartix is designed with a strict Kernel-Userland isolation boundary:
 ## ⚖️ Licensing
 
 Heartix strictly adheres to a dual-license architecture to satisfy both open-source freedom and patent protection:
-* **The HXNU Kernel & Ecosystem:** Licensed under **TCOL (Turkish Conservative Open License) v1.1**, enforcing strict bare-metal integrity, anti-backdoor (TCK compliance), and patent protections for BerryComp proprietary technologies.
+* **The HXNU Kernel & Ecosystem:** Licensed under **TCOL (Turkish Conservative Open License) v1.1**, enforcing strict bare-metal integrity, anti-backdoor (TCK compliance), and patent protections for Middle Eastern Calculation Machinary Ltd proprietary technologies.
 * **The Heartix Userland:** Licensed under **GNU GPLv3**, guaranteeing freedom to share and modify the user-space applications and standard libraries.
 
 *The boundary between GPLv3 and TCOL is maintained cleanly via the HXNU system call interface (LCL / Ghost Bootstrap ABI), ensuring full legal compliance without static linkage conflicts.*
@@ -41,9 +41,9 @@ make
 Heartix features **fenster**, a lightweight, high-performance windowing system, accompanied by custom terminal emulators and desktop applications built to run seamlessly on the HXNU architecture.
 
 ## 🤝 Attribution
-* **Heartix Architecture & HXNU Kernel:** Efe İlhan Yüce (Chief Architect, BerryComp Labs).
+* **Heartix Architecture & HXNU Kernel:** Efe İlhan Yüce (Chief Architect, Middle Eastern Calculation Machinary Ltd).
 * **Legacy Origins:** This codebase originally descended from the Ghost project by Max Schlüssel. Heartix retains the GPL notices while applying its own massive architectural shifts and branding.
 
 ## 📧 Contact
-* **BerryComp Labs:** efe@berrycomp.com
+* **Middle Eastern Calculation Machinary Ltd:** efe@berrycomp.com
 * **Upstream Ghost (Legacy):** lokoxe@gmail.com
