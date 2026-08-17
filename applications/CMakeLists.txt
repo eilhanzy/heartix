@@ -18,6 +18,16 @@ foreach(_inc ${_all_inc_dirs})
   endif()
 endforeach()
 
+# Include headers from submodule drivers
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/drivers)
+  file(GLOB _driver_inc_dirs RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/drivers */inc)
+  foreach(_inc ${_driver_inc_dirs})
+    if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/drivers/${_inc})
+      list(APPEND APPLICATIONS_ALL_INC_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/drivers/${_inc})
+    endif()
+  endforeach()
+endif()
+
 # Make sure the sysroot headers are exposed to all application targets.
 list(APPEND APPLICATIONS_ALL_INC_DIRS ${SYSROOT}/system/include)
 
@@ -27,17 +37,7 @@ set(_LIB_HEADER_INSTALL_TARGETS)
 
 # Applications that should be treated as libraries (static + optional shared)
 set(APPLICATION_LIBRARY_TARGETS
-  libac97audio
-  libahci
-  libeth
-  libdevice
-  libinput
-  libpci
-  libproperties
-  libps2
-  libps2driver
-  libterminal
-  libvideo)
+  libterminal)
 
 # Extra compile definitions/includes per application executable
 set(APP_EXTRA_CFLAGS_desktop   "-I${SYSROOT}/system/include/freetype2")
@@ -47,14 +47,10 @@ set(APP_EXTRA_CFLAGS_navigator "-I${SYSROOT}/system/include/freetype2")
 set(APP_EXTRA_CFLAGS_terminal  "-I${SYSROOT}/system/include/freetype2")
 
 # Extra link flags per application executable
-set(APP_EXTRA_LDFLAGS_ahcidriver  "-lpci")
-set(APP_EXTRA_LDFLAGS_ac97driver  "-lpci -ldevice -lac97audio")
 set(APP_EXTRA_LDFLAGS_calculator  "-lfenster")
 set(APP_EXTRA_LDFLAGS_desktop     "-lproperties -lfenster -lcairo -lfreetype -lpixman-1 -lpng -lz")
 set(APP_EXTRA_LDFLAGS_devicemanager "-lpci")
 set(APP_EXTRA_LDFLAGS_editor      "-lproperties -linput -lfenster -lcairo -lfreetype -lpixman-1 -lpng -lz")
-set(APP_EXTRA_LDFLAGS_efifbdriver "-ldevice")
-set(APP_EXTRA_LDFLAGS_ethdriver "-lpci -ldevice")
 set(APP_EXTRA_LDFLAGS_ipconfig    "-leth")
 set(APP_EXTRA_LDFLAGS_ping        "-leth")
 set(APP_EXTRA_LDFLAGS_startupsound "-lac97audio")
@@ -62,11 +58,8 @@ set(APP_EXTRA_LDFLAGS_gsh         "-lterminal")
 set(APP_EXTRA_LDFLAGS_ghsh        "-lps2driver -linput -lterminal -lproperties -lvideo")
 set(APP_EXTRA_LDFLAGS_navigator   "-lproperties -linput -lfenster -lcairo -lfreetype -lpixman-1 -lpng -lz")
 set(APP_EXTRA_LDFLAGS_proc        "-lterminal")
-set(APP_EXTRA_LDFLAGS_ps2driver   "-lps2")
 set(APP_EXTRA_LDFLAGS_terminal  "-lfenster -lterminal -lps2driver -linput -lproperties -lcairo -lfreetype -lpixman-1 -lpng -lz")
 set(APP_EXTRA_LDFLAGS_testprogram "-lps2driver -lfenster")
-set(APP_EXTRA_LDFLAGS_vmsvgadriver "-lpci -ldevice")
-set(APP_EXTRA_LDFLAGS_vboxvgadriver "-lpci -ldevice")
 set(APP_EXTRA_LDFLAGS_ghmwm "-lvideo -lps2driver -linput -lproperties -lpng -lz")
 
 set(FENSTER_DEPENDENT_APPS
@@ -76,9 +69,7 @@ set(FENSTER_DEPENDENT_APPS
   editor
   navigator
   terminal
-  testprogram
-  vmsvgadriver)
-
+  testprogram)
 
 # Artifact overrides (default is "<app>.bin")
 set(APP_ARTIFACT_testprogram "tester.bin")
@@ -100,6 +91,11 @@ function(get_app_metadata name out_artifact out_cflags out_ldflags)
   set(${out_cflags}   "${_cflags}"   PARENT_SCOPE)
   set(${out_ldflags}  "${_ldflags}"  PARENT_SCOPE)
 endfunction()
+
+# Include submodule drivers
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/drivers/CMakeLists.txt)
+  add_subdirectory(drivers)
+endif()
 
 file(GLOB children RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS *)
 
@@ -154,25 +150,17 @@ if(GHOST_ENABLE_FENSTER)
     endif()
   endif()
 endif()
+
 set(_APP_INSTALL_TARGETS)
 foreach(child ${children})
-  if(child STREQUAL "core")
-    # core utilities are handled separately (multiple sub-apps)
+  if(child STREQUAL "core" OR child STREQUAL "drivers" OR child STREQUAL "fenster" OR child STREQUAL "ghmwm")
+    # core utilities, drivers submodule, and external submodules are handled separately
     continue()
   endif()
   if(NOT GHOST_ENABLE_FENSTER)
     list(FIND FENSTER_DEPENDENT_APPS ${child} _fenster_idx)
     if(NOT _fenster_idx EQUAL -1)
       message(STATUS "Skipping ${child}: GHOST_ENABLE_FENSTER=OFF")
-      continue()
-    endif()
-  endif()
-  # Skip libinput build if libproperties is missing
-  if(child STREQUAL "libinput")
-    set(_libprops_dir ${CMAKE_CURRENT_SOURCE_DIR}/libproperties/inc/libproperties/properties.hpp)
-    set(_fenster_libprops_dir ${CMAKE_CURRENT_SOURCE_DIR}/fenster/libproperties/inc/libproperties/properties.hpp)
-    if(NOT EXISTS ${_libprops_dir} AND NOT EXISTS ${_fenster_libprops_dir})
-      message(WARNING "Skipping libinput: missing libproperties headers")
       continue()
     endif()
   endif()
@@ -365,6 +353,9 @@ if(TARGET applications-libs)
   if(_LIB_HEADER_INSTALL_TARGETS)
     add_dependencies(applications-libs ${_LIB_HEADER_INSTALL_TARGETS})
   endif()
+  if(TARGET hxnu-drivers-libs)
+    add_dependencies(applications-libs hxnu-drivers-libs)
+  endif()
   if(GHOST_ENABLE_FENSTER AND TARGET fenster)
     add_dependencies(applications-libs fenster)
   endif()
@@ -377,9 +368,14 @@ if(TARGET applications-libs)
 endif()
 
 # Convenience target to install all apps
-if(_APP_INSTALL_TARGETS)
+if(_APP_INSTALL_TARGETS OR TARGET hxnu-drivers-install)
   if(NOT TARGET applications-install)
     add_custom_target(applications-install)
   endif()
-  add_dependencies(applications-install ${_APP_INSTALL_TARGETS})
+  if(_APP_INSTALL_TARGETS)
+    add_dependencies(applications-install ${_APP_INSTALL_TARGETS})
+  endif()
+  if(TARGET hxnu-drivers-install)
+    add_dependencies(applications-install hxnu-drivers-install)
+  endif()
 endif()
