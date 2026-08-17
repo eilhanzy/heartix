@@ -1,115 +1,49 @@
-# ABOUT HEARTIX (heavy-modified Ghost)
+# Heartix OS 
 
-Heartix is a heavily modified fork of the Ghost microkernel project. It keeps the
-original Ghost architecture and copyright notices by Max Schlüssel, but rebrands
-as **Heartix** and tracks its own versioning starting at **0.1.0**.
+Heartix is an advanced, high-performance operating system userland built on top of the **HXNU Micro-Hybrid Kernel**. 
 
-# This repository will now be kept as an archive, and end-of-life activities will begin. See issue #4 for details.
+Originally a heavily modified fork of the monolithic Ghost microkernel, Heartix has undergone a complete architectural revolution. The legacy monolithic kernel has been purged and replaced by the deterministic, zero-latency **HXNU Ecosystem**, bridging the gap between bare-metal hardware and a rich, modern POSIX-like userland.
 
-## Status
-* Kernel: Heartix 0.1.0 (heavy-modified Ghost)
-* License: GPLv3 (original Ghost licensing retained)
-* Credits: Max Schlüssel (upstream Ghost); Heartix modifications by Efe Ilhan Yüce and contributors.
+## 🏗️ Architecture
 
-## Documentation
-See `documentation/` for design notes and build instructions inherited from Ghost.
+Heartix is designed with a strict Kernel-Userland isolation boundary:
+* **Kernel (HXNU):** A lightweight, micro-hybrid traffic director. It handles zero-latency asymmetric IRQ routing, memory mapping (via HFS), and process lifecycle. It does NOT process POSIX logic internally.
+* **Compatibility Layer (GCL):** A native `.hxext` kernel extension (`hxnu-drivers`) that provides backwards compatibility for legacy Ghost system calls by translating them to HXNU native LCL (Local Communication Layer) calls.
+* **Userland (Heartix):** A rich ecosystem of applications (`.hxapp`), drivers, window managers (`fenster`), and libraries (`libapi`, `libc`) running in isolated Ring 3 environments.
 
-Outputs are placed under `target/` (bootable ISO, kernel, sysroot artifacts).
+## ⚖️ Licensing
 
-## Build (CMake)
-Heartix is built with a cross toolchain (`x86_64-ghost`) and a CMake-based flow.
-Third-party libraries (zlib, pixman, libpng, freetype, cairo, etc.) are built
-into the Ghost sysroot during the build process; you do not install them as
-system libraries for host compilation.
+Heartix strictly adheres to a dual-license architecture to satisfy both open-source freedom and patent protection:
+* **The HXNU Kernel & Ecosystem:** Licensed under **TCOL (Turkish Conservative Open License) v1.1**, enforcing strict bare-metal integrity, anti-backdoor (TCK compliance), and patent protections for BerryComp proprietary technologies.
+* **The Heartix Userland:** Licensed under **GNU GPLv3**, guaranteeing freedom to share and modify the user-space applications and standard libraries.
 
-### Arch Linux prerequisites
+*The boundary between GPLv3 and TCOL is maintained cleanly via the HXNU system call interface (LCL / Ghost Bootstrap ABI), ensuring full legal compliance without static linkage conflicts.*
+
+## 🚀 Build System
+
+Heartix utilizes a modernized, pure **CMake** build flow, abandoning legacy bash scripts.
+
+### Prerequisites
+* A standard Linux development environment (Arch, Ubuntu, WSL2, etc.)
+* `cmake`, `make`, `git`, `python3`
+* The **HXNU GCC Toolchain** (`aarch64-hxnu-gcc` or `x86_64-hxnu-gcc` depending on target architecture).
+
+### Building
+
+The build system is currently undergoing migration to output `.hxapp` binaries.
 ```bash
-sudo pacman -S --needed \
-  base-devel cmake nasm xorriso curl git pkgconf \
-  autoconf automake bison flex texinfo gmp mpfr libmpc isl
+mkdir build && cd build
+cmake .. -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/hxnu-target.cmake
+make
 ```
 
-### macOS prerequisites
-```bash
-xcode-select --install
-brew install \
-  cmake gcc nasm xorriso curl pkg-config \
-  autoconf automake bison flex texinfo gmp mpfr libmpc isl
-```
+## 🖥️ User Interface
+Heartix features **fenster**, a lightweight, high-performance windowing system, accompanied by custom terminal emulators and desktop applications built to run seamlessly on the HXNU architecture.
 
-### 1) Bootstrap the cross toolchain
-```bash
-cmake -S cmake/ghost-toolchain-bootstrap -B build-ghost-toolchain \
-  -DTARGET_TRIPLE=x86_64-ghost \
-  -DTOOLCHAIN_BASE=$PWD/build-ghost/toolchain \
-  -DSYSROOT=$PWD/build-ghost/sysroot
+## 🤝 Attribution
+* **Heartix Architecture & HXNU Kernel:** Efe İlhan Yüce (Chief Architect, BerryComp Labs).
+* **Legacy Origins:** This codebase originally descended from the Ghost project by Max Schlüssel. Heartix retains the GPL notices while applying its own massive architectural shifts and branding.
 
-cmake --build build-ghost-toolchain --target ghost-toolchain
-```
-
-### 2) Ensure the toolchain is visible
-```bash
-export PATH="$PWD/build-ghost/toolchain/bin:$PATH"
-x86_64-ghost-gcc --version
-```
-
-If `x86_64-ghost-gcc` is not found, bootstrap the toolchain again (step 1).
-
-### 3) Configure and build Heartix
-```bash
-rm -rf build-ghost/CMakeCache.txt build-ghost/CMakeFiles
-
-cmake -S . -B build-ghost \
-  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/ghost-x86_64.cmake \
-  -DTARGET_TRIPLE=x86_64-ghost \
-  -DTOOLCHAIN_BASE=$PWD/build-ghost/toolchain \
-  -DSYSROOT=$PWD/build-ghost/sysroot \
-  -DGHOST_BUILD_PORTS=ON \
-  -DGHOST_ENABLE_PACK=ON
-
-cmake --build build-ghost --target pack
-```
-
-macOS note: the build uses Limine's `v9.2.0-binary` release. If a native `limine` host
-installer is not available, BIOS post-install is skipped and UEFI boot is recommended.
-
-Output ISO:
-```text
-target/ghost.iso
-```
-
-### Build without ISO (no `xorriso` requirement)
-If you only want binaries/sysroot artifacts:
-
-```bash
-cmake -S . -B build-ghost \
-  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/ghost-x86_64.cmake \
-  -DTARGET_TRIPLE=x86_64-ghost \
-  -DTOOLCHAIN_BASE=$PWD/build-ghost/toolchain \
-  -DSYSROOT=$PWD/build-ghost/sysroot \
-  -DGHOST_BUILD_PORTS=ON \
-  -DGHOST_ENABLE_PACK=OFF
-
-cmake --build build-ghost
-```
-
-## Running
-Test in a VM (VirtualBox/VMware/QEMU) with at least 512 MB RAM. Prefer VMSVGA/VMware SVGA for graphics.
-
-## Features (inherited, evolving)
-* x86_64 microkernel with SMP
-* ELF userland, shared libs
-* libapi + libc (Heartix-branded Ghost libs)
-* IPC: messages, pipes, shared memory
-* Drivers: VESA/VBE/VMSVGA/Bochs-VGA, PS/2, PCI, AC97, E1000 (where available)
-* Limine boot protocol compliance
-
-## Ported/used software
-libpng, pixman, zlib, cairo, freetype, musl (libm), duktape, etc. (see `patches/ports`).
-
-## Attribution
-This codebase originates from the Ghost project by Max Schlüssel. Heartix retains the GPL and upstream notices while applying its own modifications and branding.
-
-## Contact
-Heartix mods: eilhanzy@protonmail.com
-Ghost upstream: lokoxe@gmail.com
+## 📧 Contact
+* **BerryComp Labs:** efe@berrycomp.com
+* **Upstream Ghost (Legacy):** lokoxe@gmail.com
