@@ -6,4 +6,7 @@
 	url = https://github.com/neonix-bmx/ghmwm
 [submodule "kernel"]
 	path = kernel
-	url = /mnt/KINGSTON/Berturk/Projects/hxnu
+	url = https://github.com/berrycomp/hxnu.git
+[submodule "applications/drivers"]
+	path = applications/drivers
+	url = /mnt/KINGSTON/Berturk/Projects/hxnu-drivers
