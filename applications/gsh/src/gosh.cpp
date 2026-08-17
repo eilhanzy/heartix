@@ -320,10 +320,6 @@ static bool gshEndsWith(const std::string& value, const char* suffix)
 static g_security_level gshSecurityLevelForProgram(const std::string& programPath,
                                                     const std::string& programName)
 {
-	if(programName == "lve" || programName == "lve.bin" || gshEndsWith(programPath, "/lve.bin"))
-	{
-		return G_SECURITY_LEVEL_DRIVER;
-	}
 	return G_SECURITY_LEVEL_APPLICATION;
 }
 
